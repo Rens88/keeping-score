@@ -36,7 +36,8 @@ def require_login(services: AppServices) -> User:
         return user
 
     st.warning("Please log in first.")
-    st.page_link("pages/01_Login.py", label="Go to Login")
+    if st.button("Go to Login", width="stretch", key="require_login_go_login"):
+        st.switch_page("pages/01_Login.py")
     st.stop()
 
 
@@ -46,7 +47,8 @@ def require_admin(services: AppServices) -> User:
         return user
 
     st.error("You do not have permission to view this page.")
-    st.page_link("pages/03_Leaderboard.py", label="Go to Leaderboard")
+    if st.button("Go to Leaderboard", width="stretch", key="require_admin_go_leaderboard"):
+        st.switch_page("pages/03_Leaderboard.py")
     st.stop()
 
 
@@ -56,19 +58,29 @@ def render_main_navigation(user: Optional[User]) -> None:
 
     st.markdown("**Quick Navigation**")
     core_cols = st.columns(5)
-    core_cols[0].page_link("app.py", label="Home", icon="🏠")
-    core_cols[1].page_link("pages/03_Leaderboard.py", label="Leaderboard", icon="🏆")
-    core_cols[2].page_link("pages/04_Upcoming_Matches.py", label="Upcoming", icon="📅")
-    core_cols[3].page_link("pages/05_Past_Matches.py", label="Past", icon="📜")
-    core_cols[4].page_link("pages/06_My_Profile.py", label="My Profile", icon="👤")
+    if core_cols[0].button("🏠 Home", width="stretch", key="top_nav_home"):
+        st.switch_page("app.py")
+    if core_cols[1].button("🏆 Leaderboard", width="stretch", key="top_nav_leaderboard"):
+        st.switch_page("pages/03_Leaderboard.py")
+    if core_cols[2].button("📅 Upcoming", width="stretch", key="top_nav_upcoming"):
+        st.switch_page("pages/04_Upcoming_Matches.py")
+    if core_cols[3].button("📜 Past", width="stretch", key="top_nav_past"):
+        st.switch_page("pages/05_Past_Matches.py")
+    if core_cols[4].button("👤 My Profile", width="stretch", key="top_nav_profile"):
+        st.switch_page("pages/06_My_Profile.py")
 
     if user.role == "admin":
         admin_cols = st.columns(5)
-        admin_cols[0].page_link("pages/07_Admin_Dashboard.py", label="Admin Home", icon="🛡️")
-        admin_cols[1].page_link("pages/08_Admin_Participants_Invitations.py", label="Participants", icon="👥")
-        admin_cols[2].page_link("pages/09_Admin_Schedule.py", label="Schedule", icon="🗓️")
-        admin_cols[3].page_link("pages/10_Admin_Results.py", label="Results", icon="✅")
-        admin_cols[4].page_link("pages/11_Admin_Backup_Restore.py", label="Backup", icon="💾")
+        if admin_cols[0].button("🛡️ Admin Home", width="stretch", key="top_nav_admin_home"):
+            st.switch_page("pages/07_Admin_Dashboard.py")
+        if admin_cols[1].button("👥 Participants", width="stretch", key="top_nav_admin_participants"):
+            st.switch_page("pages/08_Admin_Participants_Invitations.py")
+        if admin_cols[2].button("🗓️ Schedule", width="stretch", key="top_nav_admin_schedule"):
+            st.switch_page("pages/09_Admin_Schedule.py")
+        if admin_cols[3].button("✅ Results", width="stretch", key="top_nav_admin_results"):
+            st.switch_page("pages/10_Admin_Results.py")
+        if admin_cols[4].button("💾 Backup", width="stretch", key="top_nav_admin_backup"):
+            st.switch_page("pages/11_Admin_Backup_Restore.py")
 
     st.divider()
 
@@ -91,16 +103,25 @@ def render_sidebar(user: Optional[User]) -> None:
 
         st.divider()
         st.subheader("Navigation")
-        st.page_link("pages/03_Leaderboard.py", label="Leaderboard")
-        st.page_link("pages/04_Upcoming_Matches.py", label="Upcoming")
-        st.page_link("pages/05_Past_Matches.py", label="Past Matches")
-        st.page_link("pages/06_My_Profile.py", label="My Profile")
+        if st.button("Leaderboard", width="stretch", key="side_nav_leaderboard"):
+            st.switch_page("pages/03_Leaderboard.py")
+        if st.button("Upcoming", width="stretch", key="side_nav_upcoming"):
+            st.switch_page("pages/04_Upcoming_Matches.py")
+        if st.button("Past Matches", width="stretch", key="side_nav_past"):
+            st.switch_page("pages/05_Past_Matches.py")
+        if st.button("My Profile", width="stretch", key="side_nav_profile"):
+            st.switch_page("pages/06_My_Profile.py")
 
         if user and user.role == "admin":
             st.divider()
             st.subheader("Admin")
-            st.page_link("pages/07_Admin_Dashboard.py", label="Dashboard")
-            st.page_link("pages/08_Admin_Participants_Invitations.py", label="Participants & Invites")
-            st.page_link("pages/09_Admin_Schedule.py", label="Manage Schedule")
-            st.page_link("pages/10_Admin_Results.py", label="Enter/Edit Results")
-            st.page_link("pages/11_Admin_Backup_Restore.py", label="Backup & Restore")
+            if st.button("Dashboard", width="stretch", key="side_nav_admin_dashboard"):
+                st.switch_page("pages/07_Admin_Dashboard.py")
+            if st.button("Participants & Invites", width="stretch", key="side_nav_admin_participants"):
+                st.switch_page("pages/08_Admin_Participants_Invitations.py")
+            if st.button("Manage Schedule", width="stretch", key="side_nav_admin_schedule"):
+                st.switch_page("pages/09_Admin_Schedule.py")
+            if st.button("Enter/Edit Results", width="stretch", key="side_nav_admin_results"):
+                st.switch_page("pages/10_Admin_Results.py")
+            if st.button("Backup & Restore", width="stretch", key="side_nav_admin_backup"):
+                st.switch_page("pages/11_Admin_Backup_Restore.py")

@@ -17,7 +17,8 @@ st.write("Use your username or email and password.")
 
 if current_user:
     st.success("You are already logged in.")
-    st.page_link("pages/03_Leaderboard.py", label="Go to Leaderboard")
+    if st.button("Go to Leaderboard", width="stretch", key="login_go_leaderboard"):
+        st.switch_page("pages/03_Leaderboard.py")
     st.stop()
 
 with st.form("login_form", clear_on_submit=False):
@@ -35,5 +36,6 @@ if submitted:
         st.rerun()
 
 st.divider()
-st.page_link("pages/02_Accept_Invitation.py", label="I have an invitation link")
+if st.button("I have an invitation link", width="stretch", key="login_go_invite"):
+    st.switch_page("pages/02_Accept_Invitation.py")
 render_bottom_decoration()

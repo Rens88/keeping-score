@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 import random
-from typing import Optional
 
 import streamlit as st
 
@@ -188,19 +187,9 @@ def apply_cangeroes_theme() -> None:
                 border-top: 1px solid rgba(0, 0, 0, 0.08);
             }
 
-            .uc-decoration-grid {
-                display: grid;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-                gap: 0.55rem;
-            }
-
-            .uc-decoration-grid img {
-                width: 100%;
-                height: 110px;
-                object-fit: cover;
-                border-radius: 10px;
-                border: 2px solid rgba(0, 0, 0, 0.12);
-                display: block;
+            .uc-decoration-media {
+                border-radius: 12px;
+                overflow: hidden;
             }
 
             @media (max-width: 900px) {
@@ -220,23 +209,9 @@ def apply_cangeroes_theme() -> None:
                     font-size: 0.86rem;
                 }
 
-                .uc-decoration-grid {
-                    grid-template-columns: repeat(2, minmax(0, 1fr));
-                }
-
-                .uc-decoration-grid img {
-                    height: 92px;
-                }
             }
 
             @media (max-width: 560px) {
-                .uc-decoration-grid {
-                    grid-template-columns: 1fr;
-                }
-
-                .uc-decoration-grid img {
-                    height: 88px;
-                }
             }
         </style>
         """,
@@ -256,7 +231,7 @@ def _media_folder_candidates() -> list[Path]:
     ]
 
 
-def _list_header_media_files() -> list[Path]:
+def _list_decoration_media() -> list[Path]:
     files: list[Path] = []
     for folder in _media_folder_candidates():
         if not folder.exists() or not folder.is_dir():
@@ -268,24 +243,6 @@ def _list_header_media_files() -> list[Path]:
             if suffix in _IMAGE_EXTENSIONS or suffix in _VIDEO_EXTENSIONS:
                 files.append(path)
     return files
-
-
-def _list_decoration_images() -> list[Path]:
-    files: list[Path] = []
-    for folder in _media_folder_candidates():
-        if not folder.exists() or not folder.is_dir():
-            continue
-        for path in sorted(folder.iterdir()):
-            if path.is_file() and path.suffix.lower() in _IMAGE_EXTENSIONS:
-                files.append(path)
-    return files
-
-
-def _pick_random_header_media() -> Optional[Path]:
-    files = _list_header_media_files()
-    if not files:
-        return None
-    return random.choice(files)
 
 
 def render_cangeroes_header() -> None:
@@ -306,43 +263,39 @@ def render_cangeroes_header() -> None:
             unsafe_allow_html=True,
         )
 
-    media_path = _pick_random_header_media()
-    if media_path is None:
-        st.image(CANGEROES_FALLBACK_HERO_URL, width="stretch")
-        st.caption("Tip: place images/mp4 in `assets/deocration` for random rotating header media.")
-        return
 
-    suffix = media_path.suffix.lower()
-    if suffix in _VIDEO_EXTENSIONS:
-        st.video(media_path.read_bytes())
-    else:
-        st.image(str(media_path), width="stretch")
-
-
-def render_bottom_decoration(max_images: int = 4) -> None:
-    image_paths = _list_decoration_images()
-    if not image_paths:
-        return
-
-    random.shuffle(image_paths)
-    chosen = image_paths[: max(1, min(max_images, len(image_paths)))]
-
-    image_tags: list[str] = []
-    for path in chosen:
-        suffix = path.suffix.lower().lstrip(".") or "jpeg"
-        mime_type = "image/jpeg" if suffix == "jpg" else f"image/{suffix}"
-        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-        image_tags.append(
-            f'<img src="data:{mime_type};base64,{encoded}" alt="Decoration" loading="lazy" />'
-        )
-
+def _render_autoplay_video(video_bytes: bytes) -> None:
+    encoded = base64.b64encode(video_bytes).decode("ascii")
     st.markdown(
         f"""
+        <video autoplay muted loop playsinline controls style="width:100%; border-radius:12px; display:block;">
+            <source src="data:video/mp4;base64,{encoded}" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_bottom_decoration() -> None:
+    media_paths = _list_decoration_media()
+    chosen: Path | None = random.choice(media_paths) if media_paths else None
+
+    st.markdown(
+        """
         <div class="uc-decoration-wrap">
-            <div class="uc-decoration-grid">
-                {''.join(image_tags)}
-            </div>
+            <div class="uc-decoration-media"></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    if chosen is None:
+        st.image(CANGEROES_FALLBACK_HERO_URL, width="stretch")
+        return
+
+    suffix = chosen.suffix.lower()
+    if suffix in _VIDEO_EXTENSIONS:
+        _render_autoplay_video(chosen.read_bytes())
+    else:
+        st.image(str(chosen), width="stretch")

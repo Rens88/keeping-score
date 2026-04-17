@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import render_sidebar, require_login
@@ -37,7 +38,7 @@ if user.role == "participant":
                 for m in eligible
             }
             selected_label = st.selectbox("Choose a match to activate your doubler", list(options.keys()))
-            if st.button("Activate doubler", use_container_width=True):
+            if st.button("Activate doubler", width="stretch"):
                 try:
                     services.match_service.activate_doubler(
                         participant_user_id=user.id,
@@ -66,3 +67,5 @@ if not upcoming_cards:
 else:
     for card in upcoming_cards:
         render_match_card(card)
+
+render_bottom_decoration()

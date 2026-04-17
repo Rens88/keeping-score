@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import render_sidebar, require_admin
 
@@ -65,6 +66,8 @@ else:
             }
             for row in rows
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
+
+render_bottom_decoration()

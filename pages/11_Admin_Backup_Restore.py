@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import logout_user, render_sidebar, require_admin
@@ -29,7 +30,7 @@ st.download_button(
     data=export_bytes,
     file_name=export_filename,
     mime="application/octet-stream",
-    use_container_width=True,
+    width="stretch",
 )
 
 st.divider()
@@ -48,7 +49,7 @@ confirm_import = st.checkbox(
     value=False,
 )
 
-if st.button("Import backup and replace current state", type="primary", use_container_width=True):
+if st.button("Import backup and replace current state", type="primary", width="stretch"):
     if uploaded_backup is None:
         st.error("Please upload a backup file first.")
     elif not confirm_import:
@@ -67,3 +68,5 @@ if st.button("Import backup and replace current state", type="primary", use_cont
             st.error(str(exc))
         except Exception:
             st.error("Import failed. The uploaded file may be invalid or incompatible.")
+
+render_bottom_decoration()

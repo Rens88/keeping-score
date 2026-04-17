@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 import random
 from typing import Optional
@@ -43,11 +44,15 @@ def apply_cangeroes_theme() -> None:
             [data-testid="stAppViewContainer"] .main .block-container {
                 padding-top: 4.6rem;
                 padding-bottom: 1.6rem;
+                padding-left: 1.1rem;
+                padding-right: 1.1rem;
             }
 
             @media (max-width: 900px) {
                 [data-testid="stAppViewContainer"] .main .block-container {
                     padding-top: 5.1rem;
+                    padding-left: 0.85rem;
+                    padding-right: 0.85rem;
                 }
             }
 
@@ -56,6 +61,39 @@ def apply_cangeroes_theme() -> None:
                 text-transform: uppercase;
                 letter-spacing: 0.02em;
                 font-weight: 900;
+            }
+
+            /* Main-area body and form labels: lock readable contrast regardless
+               of Streamlit light/dark mode setting. */
+            [data-testid="stAppViewContainer"] .main label,
+            [data-testid="stAppViewContainer"] .main p,
+            [data-testid="stAppViewContainer"] .main li,
+            [data-testid="stAppViewContainer"] .main small,
+            [data-testid="stAppViewContainer"] .main [data-testid="InputInstructions"] {
+                color: #1c1c1c !important;
+            }
+
+            /* Inputs/selects/textareas rendered with an always-readable surface. */
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] > div,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] > div,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] > div {
+                background-color: #ffffff !important;
+                color: #111111 !important;
+                border: 1px solid #c7c7c7 !important;
+                box-shadow: none !important;
+            }
+
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] input,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] input,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] textarea,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] * {
+                color: #111111 !important;
+                -webkit-text-fill-color: #111111 !important;
+            }
+
+            [data-testid="stAppViewContainer"] .main ::placeholder {
+                color: #6d6d6d !important;
+                opacity: 1 !important;
             }
 
             [data-testid="stSidebar"] {
@@ -73,9 +111,10 @@ def apply_cangeroes_theme() -> None:
             }
 
             .stButton > button,
-            .stDownloadButton > button {
+            .stDownloadButton > button,
+            .stFormSubmitButton > button {
                 background: linear-gradient(180deg, var(--uc-red) 0%, var(--uc-red-dark) 100%);
-                color: #ffffff;
+                color: #ffffff !important;
                 border: 1px solid #8f0f13;
                 border-radius: 10px;
                 font-weight: 700;
@@ -83,9 +122,22 @@ def apply_cangeroes_theme() -> None:
             }
 
             .stButton > button:hover,
-            .stDownloadButton > button:hover {
+            .stDownloadButton > button:hover,
+            .stFormSubmitButton > button:hover {
                 border-color: var(--uc-yellow);
-                color: var(--uc-yellow);
+                color: var(--uc-yellow) !important;
+            }
+
+            .stButton > button span,
+            .stDownloadButton > button span,
+            .stFormSubmitButton > button span {
+                color: #ffffff !important;
+            }
+
+            .stButton > button:hover span,
+            .stDownloadButton > button:hover span,
+            .stFormSubmitButton > button:hover span {
+                color: var(--uc-yellow) !important;
             }
 
             div[data-testid="stMetric"] {
@@ -129,6 +181,63 @@ def apply_cangeroes_theme() -> None:
                 font-weight: 600;
                 font-size: 0.96rem;
             }
+
+            .uc-decoration-wrap {
+                margin-top: 1.2rem;
+                padding-top: 0.6rem;
+                border-top: 1px solid rgba(0, 0, 0, 0.08);
+            }
+
+            .uc-decoration-grid {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 0.55rem;
+            }
+
+            .uc-decoration-grid img {
+                width: 100%;
+                height: 110px;
+                object-fit: cover;
+                border-radius: 10px;
+                border: 2px solid rgba(0, 0, 0, 0.12);
+                display: block;
+            }
+
+            @media (max-width: 900px) {
+                h1 {
+                    font-size: 2rem;
+                }
+
+                h2 {
+                    font-size: 1.35rem;
+                }
+
+                .uc-title {
+                    font-size: 1.2rem;
+                }
+
+                .uc-subtitle {
+                    font-size: 0.86rem;
+                }
+
+                .uc-decoration-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+
+                .uc-decoration-grid img {
+                    height: 92px;
+                }
+            }
+
+            @media (max-width: 560px) {
+                .uc-decoration-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .uc-decoration-grid img {
+                    height: 88px;
+                }
+            }
         </style>
         """,
         unsafe_allow_html=True,
@@ -161,6 +270,17 @@ def _list_header_media_files() -> list[Path]:
     return files
 
 
+def _list_decoration_images() -> list[Path]:
+    files: list[Path] = []
+    for folder in _media_folder_candidates():
+        if not folder.exists() or not folder.is_dir():
+            continue
+        for path in sorted(folder.iterdir()):
+            if path.is_file() and path.suffix.lower() in _IMAGE_EXTENSIONS:
+                files.append(path)
+    return files
+
+
 def _pick_random_header_media() -> Optional[Path]:
     files = _list_header_media_files()
     if not files:
@@ -178,9 +298,9 @@ def render_cangeroes_header() -> None:
         st.markdown(
             """
             <div class="uc-header-shell">
-                <div class="uc-kicker">Weekend Tournament</div>
-                <div class="uc-title">Utrecht Cangeroes Style Tracker</div>
-                <div class="uc-subtitle">Basketballen met plezier voor iedereen in Utrecht</div>
+                <div class="uc-kicker">Teamweekend 2026 / 2027</div>
+                <div class="uc-title">Net geen Kampioen</div>
+                <div class="uc-subtitle">Maar we hebben wel de #1 verslagen</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -188,7 +308,7 @@ def render_cangeroes_header() -> None:
 
     media_path = _pick_random_header_media()
     if media_path is None:
-        st.image(CANGEROES_FALLBACK_HERO_URL, use_container_width=True)
+        st.image(CANGEROES_FALLBACK_HERO_URL, width="stretch")
         st.caption("Tip: place images/mp4 in `assets/deocration` for random rotating header media.")
         return
 
@@ -196,4 +316,33 @@ def render_cangeroes_header() -> None:
     if suffix in _VIDEO_EXTENSIONS:
         st.video(media_path.read_bytes())
     else:
-        st.image(str(media_path), use_container_width=True)
+        st.image(str(media_path), width="stretch")
+
+
+def render_bottom_decoration(max_images: int = 4) -> None:
+    image_paths = _list_decoration_images()
+    if not image_paths:
+        return
+
+    random.shuffle(image_paths)
+    chosen = image_paths[: max(1, min(max_images, len(image_paths)))]
+
+    image_tags: list[str] = []
+    for path in chosen:
+        suffix = path.suffix.lower().lstrip(".") or "jpeg"
+        mime_type = "image/jpeg" if suffix == "jpg" else f"image/{suffix}"
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        image_tags.append(
+            f'<img src="data:{mime_type};base64,{encoded}" alt="Decoration" loading="lazy" />'
+        )
+
+    st.markdown(
+        f"""
+        <div class="uc-decoration-wrap">
+            <div class="uc-decoration-grid">
+                {''.join(image_tags)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

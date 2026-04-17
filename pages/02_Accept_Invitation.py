@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import get_current_user, render_sidebar, set_logged_in_user
@@ -45,7 +46,7 @@ with st.form("invitation_signup"):
         type=["png", "jpg", "jpeg", "webp"],
         accept_multiple_files=False,
     )
-    submitted = st.form_submit_button("Create account", use_container_width=True)
+    submitted = st.form_submit_button("Create account", width="stretch")
 
 if submitted:
     photo_bytes = photo.getvalue() if photo else None
@@ -74,3 +75,4 @@ if submitted:
 
 st.divider()
 st.page_link("pages/01_Login.py", label="Already have an account? Login")
+render_bottom_decoration()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import render_sidebar, require_login
 from tournament_tracker.ui import render_leaderboard
@@ -15,3 +16,4 @@ render_sidebar(user)
 st.title("Leaderboard")
 leaderboard = services.ranking_service.compute_leaderboard()
 render_leaderboard(leaderboard)
+render_bottom_decoration()

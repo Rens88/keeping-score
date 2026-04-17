@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import get_current_user, render_sidebar
 
@@ -39,3 +40,4 @@ else:
 
 st.divider()
 st.caption("MVP: head-to-head matches, invitations, secure login, leaderboard, and one-time doubler mechanic.")
+render_bottom_decoration()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
@@ -24,7 +25,7 @@ with st.form("create_invitation_form"):
         step=1,
     )
     note = st.text_input("Note (optional)")
-    create_invite = st.form_submit_button("Create invitation", use_container_width=True)
+    create_invite = st.form_submit_button("Create invitation", width="stretch")
 
 if create_invite:
     try:
@@ -65,7 +66,7 @@ else:
             }
             for invite in invitations
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -96,8 +97,34 @@ else:
             }
         )
 
-    st.dataframe(participant_rows, use_container_width=True, hide_index=True)
+    st.dataframe(participant_rows, width="stretch", hide_index=True)
 
+    st.subheader("Reset participant password")
+    if participant_options:
+        pw_target_label = st.selectbox(
+            "Participant for password reset",
+            list(participant_options.keys()),
+            key="participant_pw_reset_select",
+        )
+        pw_target_user_id = participant_options[pw_target_label]
+        new_password = st.text_input(
+            "New password",
+            type="password",
+            key="participant_pw_reset_new",
+            help="Minimum 4 characters.",
+        )
+        if st.button("Reset password", width="stretch", key="participant_pw_reset_btn"):
+            try:
+                services.auth_service.admin_reset_password(
+                    admin_user_id=admin_user.id,
+                    target_user_id=pw_target_user_id,
+                    new_password=new_password,
+                )
+                st.success("Participant password reset.")
+            except ValidationError as exc:
+                st.error(str(exc))
+
+    st.divider()
     st.subheader("Edit participant name")
     if participant_options:
         selected_participant_label = st.selectbox(
@@ -120,7 +147,7 @@ else:
             else ""
         )
         new_name = st.text_input("New display name", value=current_name, key="participant_rename_input")
-        if st.button("Save participant name", use_container_width=True, key="participant_rename_save"):
+        if st.button("Save participant name", width="stretch", key="participant_rename_save"):
             try:
                 services.profile_service.admin_update_participant_name(
                     participant_user_id=selected_participant_id,
@@ -158,7 +185,7 @@ else:
 
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("Clear doubler", use_container_width=True):
+            if st.button("Clear doubler", width="stretch"):
                 try:
                     services.match_service.clear_doubler(selected_user_id)
                     st.success("Doubler cleared.")
@@ -180,7 +207,7 @@ else:
                     list(match_option_map.keys()),
                     key="reassign_match",
                 )
-                if st.button("Force reassign doubler", use_container_width=True):
+                if st.button("Force reassign doubler", width="stretch"):
                     try:
                         services.match_service.admin_force_reassign_doubler(
                             participant_user_id=selected_user_id,
@@ -193,3 +220,5 @@ else:
                         st.error(str(exc))
             else:
                 st.info("No upcoming matches for this participant.")
+
+render_bottom_decoration()

@@ -50,8 +50,32 @@ def require_admin(services: AppServices) -> User:
     st.stop()
 
 
+def render_main_navigation(user: Optional[User]) -> None:
+    if not user:
+        return
+
+    st.markdown("**Quick Navigation**")
+    core_cols = st.columns(5)
+    core_cols[0].page_link("app.py", label="Home", icon="🏠")
+    core_cols[1].page_link("pages/03_Leaderboard.py", label="Leaderboard", icon="🏆")
+    core_cols[2].page_link("pages/04_Upcoming_Matches.py", label="Upcoming", icon="📅")
+    core_cols[3].page_link("pages/05_Past_Matches.py", label="Past", icon="📜")
+    core_cols[4].page_link("pages/06_My_Profile.py", label="My Profile", icon="👤")
+
+    if user.role == "admin":
+        admin_cols = st.columns(5)
+        admin_cols[0].page_link("pages/07_Admin_Dashboard.py", label="Admin Home", icon="🛡️")
+        admin_cols[1].page_link("pages/08_Admin_Participants_Invitations.py", label="Participants", icon="👥")
+        admin_cols[2].page_link("pages/09_Admin_Schedule.py", label="Schedule", icon="🗓️")
+        admin_cols[3].page_link("pages/10_Admin_Results.py", label="Results", icon="✅")
+        admin_cols[4].page_link("pages/11_Admin_Backup_Restore.py", label="Backup", icon="💾")
+
+    st.divider()
+
+
 def render_sidebar(user: Optional[User]) -> None:
     render_cangeroes_header()
+    render_main_navigation(user)
 
     with st.sidebar:
         st.image(

@@ -1,0 +1,30 @@
+from __future__ import annotations
+
+import streamlit as st
+
+from tournament_tracker.bootstrap import get_services
+from tournament_tracker.session import render_sidebar, require_login
+from tournament_tracker.ui import render_match_card
+
+st.set_page_config(page_title="Past Matches", page_icon="📜", layout="wide")
+
+services = get_services()
+user = require_login(services)
+render_sidebar(user)
+
+st.title("Past Matches")
+
+show_only_mine = False
+if user.role == "participant":
+    show_only_mine = st.toggle("Show only matches I played", value=False)
+
+cards = services.match_service.list_matches_for_view(
+    statuses=["completed"],
+    participant_user_id=user.id if show_only_mine else None,
+)
+
+if not cards:
+    st.info("No completed matches yet.")
+else:
+    for card in cards:
+        render_match_card(card)

@@ -1,0 +1,1 @@
+"""Weekend tournament tracker package."""

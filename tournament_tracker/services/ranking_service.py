@@ -1,0 +1,124 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional
+
+from tournament_tracker.models import LeaderboardRow
+from tournament_tracker.repository import SQLiteRepository
+
+POINTS = {
+    "win": 4.0,
+    "draw": 2.5,
+    "loss": 1.0,
+}
+
+
+@dataclass(slots=True)
+class ParticipantStats:
+    user_id: int
+    total_points: float = 0.0
+    matches_played: int = 0
+    wins: int = 0
+    draws: int = 0
+    losses: int = 0
+
+
+class RankingService:
+    def __init__(self, repo: SQLiteRepository) -> None:
+        self.repo = repo
+
+    @staticmethod
+    def _outcome_for_side(match_outcome: str, side_number: int) -> str:
+        if match_outcome == "draw":
+            return "draw"
+        if match_outcome == "side1_win":
+            return "win" if side_number == 1 else "loss"
+        if match_outcome == "side2_win":
+            return "win" if side_number == 2 else "loss"
+        raise ValueError(f"Unknown match outcome: {match_outcome}")
+
+    def compute_leaderboard(self) -> list[LeaderboardRow]:
+        rows = self.repo.list_completed_match_player_rows()
+        doubler_rows = self.repo.list_doubler_rows()
+        doubler_match_by_user = {
+            int(row["participant_user_id"]): int(row["match_id"])
+            for row in doubler_rows
+        }
+
+        stats_by_user: dict[int, ParticipantStats] = {}
+
+        for row in rows:
+            user_id = int(row["participant_user_id"])
+            match_id = int(row["match_id"])
+            side_number = int(row["side_number"])
+            player_outcome = self._outcome_for_side(row["outcome"], side_number)
+
+            stats = stats_by_user.setdefault(user_id, ParticipantStats(user_id=user_id))
+            stats.matches_played += 1
+
+            if player_outcome == "win":
+                stats.wins += 1
+            elif player_outcome == "draw":
+                stats.draws += 1
+            else:
+                stats.losses += 1
+
+            points = POINTS[player_outcome]
+            if doubler_match_by_user.get(user_id) == match_id:
+                points *= 2
+            stats.total_points += points
+
+        if not stats_by_user:
+            return []
+
+        user_ids = list(stats_by_user.keys())
+        profile_map = self.repo.get_profiles_by_user_ids(user_ids)
+
+        ordered = sorted(
+            stats_by_user.values(),
+            key=lambda s: (-s.total_points, -s.wins, -s.draws, s.user_id),
+        )
+
+        leaderboard: list[LeaderboardRow] = []
+        rank = 0
+        previous_key: Optional[tuple[float, int, int]] = None
+
+        for idx, item in enumerate(ordered, start=1):
+            current_key = (round(item.total_points, 5), item.wins, item.draws)
+            if previous_key != current_key:
+                rank = idx
+                previous_key = current_key
+
+            profile = profile_map.get(item.user_id, {})
+            display_name = (
+                profile.get("display_name")
+                or profile.get("username")
+                or profile.get("email")
+                or f"User {item.user_id}"
+            )
+
+            leaderboard.append(
+                LeaderboardRow(
+                    rank=rank,
+                    user_id=item.user_id,
+                    display_name=str(display_name),
+                    motto=(profile.get("motto") or "") if profile else "",
+                    photo_blob=profile.get("photo_blob") if profile else None,
+                    photo_mime_type=profile.get("photo_mime_type") if profile else None,
+                    total_points=round(item.total_points, 2),
+                    matches_played=item.matches_played,
+                    wins=item.wins,
+                    draws=item.draws,
+                    losses=item.losses,
+                    doubler_used=item.user_id in doubler_match_by_user,
+                )
+            )
+
+        return leaderboard
+
+    def get_participant_stats(self, participant_user_id: int) -> Optional[LeaderboardRow]:
+        leaderboard = self.compute_leaderboard()
+        for row in leaderboard:
+            if row.user_id == participant_user_id:
+                return row
+        return None

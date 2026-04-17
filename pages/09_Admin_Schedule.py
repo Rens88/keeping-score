@@ -4,6 +4,7 @@ from datetime import datetime, time
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.services.match_service import DEFAULT_GAME_TYPES
@@ -70,7 +71,7 @@ with create_tab:
         side1_labels = st.multiselect("Side 1 participants", options=all_labels)
         side2_labels = st.multiselect("Side 2 participants", options=all_labels)
 
-        create_submit = st.form_submit_button("Create match", use_container_width=True)
+        create_submit = st.form_submit_button("Create match", width="stretch")
 
     if create_submit:
         game_type = custom_game_type.strip() if game_type_choice == "Other" else game_type_choice
@@ -185,7 +186,7 @@ with edit_tab:
                 key="edit_side2_players",
             )
 
-            update_submit = st.form_submit_button("Save changes", use_container_width=True)
+            update_submit = st.form_submit_button("Save changes", width="stretch")
 
         if update_submit:
             game_type = custom_game_type.strip() if game_type_choice == "Other" else game_type_choice
@@ -208,10 +209,12 @@ with edit_tab:
 
         st.divider()
         confirm_delete = st.checkbox("I understand this will permanently delete the selected match.")
-        if st.button("Delete selected match", type="secondary", use_container_width=True, disabled=not confirm_delete):
+        if st.button("Delete selected match", type="secondary", width="stretch", disabled=not confirm_delete):
             try:
                 services.match_service.delete_match(selected_match_id)
                 st.success("Match deleted.")
                 st.rerun()
             except NotFoundError as exc:
                 st.error(str(exc))
+
+render_bottom_decoration()

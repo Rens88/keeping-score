@@ -15,6 +15,7 @@ Production-ready V1 Streamlit app for a weekend group tournament (14 participant
   - Why: no extra storage service required, deployment-friendly for MVP
   - Tradeoff: on Streamlit Community Cloud, local file storage (including SQLite files) is **not guaranteed to persist**
 - **Branding:** Utrecht Cangeroes inspired visual theme, including logo and dynamic hero header media
+- **UX:** responsive/mobile-friendly layout tweaks and bottom decoration image strip
 
 ## Features included
 
@@ -41,6 +42,8 @@ Production-ready V1 Streamlit app for a weekend group tournament (14 participant
 - Create, update, delete matches
 - Set game type, side composition (multi-player sides supported), status
 - Enter/edit/clear match results
+- Reset participant passwords
+- Edit participant display names
 - Export full app state (admin-only)
 - Import full app state (admin-only, full overwrite)
 - Doubler troubleshooting controls:
@@ -52,6 +55,7 @@ Production-ready V1 Streamlit app for a weekend group tournament (14 participant
 - View upcoming/live/completed matches
 - View participant directory with photo + motto
 - View own profile and stats
+- Change own password
 - Activate own one-time doubler on eligible upcoming matches
 
 ### Scoring and doubler
@@ -150,6 +154,7 @@ Demo participant password from seed script: `demo-pass-123`
 ### Header media (image + mp4)
 
 The app header can randomly show either an image or an mp4 video.
+The app footer also renders decoration images from the same folder.
 
 Put files in:
 - `assets/deocration`

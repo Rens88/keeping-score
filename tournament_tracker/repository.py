@@ -1112,3 +1112,22 @@ class SQLiteRepository:
         if not created:
             raise RuntimeError("Failed to seed admin user")
         return self._row_to_user(created)
+
+    def update_user_password(
+        self,
+        *,
+        user_id: int,
+        password_hash: str,
+        updated_at: str,
+    ) -> Optional[User]:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (password_hash, updated_at, user_id),
+            )
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return self._row_to_user(row) if row else None

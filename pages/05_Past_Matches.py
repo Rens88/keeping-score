@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import render_sidebar, require_login
 from tournament_tracker.ui import render_match_card
@@ -28,3 +29,5 @@ if not cards:
 else:
     for card in cards:
         render_match_card(card)
+
+render_bottom_decoration()

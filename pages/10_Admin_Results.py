@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
@@ -54,7 +55,7 @@ with st.form("result_form"):
         format_func=lambda o: OUTCOME_BADGE.get(o, o),
     )
     notes = st.text_area("Notes", value=selected_card.result_notes or "")
-    submit_result = st.form_submit_button("Save result", use_container_width=True)
+    submit_result = st.form_submit_button("Save result", width="stretch")
 
 if submit_result:
     try:
@@ -77,10 +78,12 @@ new_status = st.selectbox(
     ["upcoming", "live"],
     index=0,
 )
-if st.button("Clear result for this match", use_container_width=True, type="secondary"):
+if st.button("Clear result for this match", width="stretch", type="secondary"):
     try:
         services.match_service.clear_match_result(match_id=selected_match_id, new_status=new_status)
         st.success("Result cleared.")
         st.rerun()
     except (ValidationError, NotFoundError) as exc:
         st.error(str(exc))
+
+render_bottom_decoration()

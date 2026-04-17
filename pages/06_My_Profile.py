@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_login
@@ -51,7 +52,7 @@ if user.role == "participant":
         motto = st.text_input("Motto", value=profile.motto or "")
         new_photo = st.file_uploader("Upload new photo", type=["png", "jpg", "jpeg", "webp"])
         keep_existing = st.checkbox("Keep existing photo if no new upload", value=True)
-        save = st.form_submit_button("Save profile", use_container_width=True)
+        save = st.form_submit_button("Save profile", width="stretch")
 
     if save:
         try:
@@ -69,6 +70,28 @@ if user.role == "participant":
                 st.image(updated.photo_blob, width=120)
             st.rerun()
         except (ValidationError, NotFoundError) as exc:
+            st.error(str(exc))
+
+st.divider()
+st.subheader("Change password")
+with st.form("change_password_form"):
+    current_password = st.text_input("Current password", type="password")
+    new_password = st.text_input("New password", type="password")
+    confirm_password = st.text_input("Confirm new password", type="password")
+    password_save = st.form_submit_button("Update password", width="stretch")
+
+if password_save:
+    if new_password != confirm_password:
+        st.error("New password and confirmation do not match.")
+    else:
+        try:
+            services.auth_service.change_password(
+                user_id=user.id,
+                current_password=current_password,
+                new_password=new_password,
+            )
+            st.success("Password updated.")
+        except ValidationError as exc:
             st.error(str(exc))
 
 st.divider()
@@ -94,3 +117,5 @@ else:
             with col_b:
                 st.markdown(f"**{name}**")
                 st.caption(participant.motto or "No motto")
+
+render_bottom_decoration()

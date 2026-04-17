@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from tournament_tracker.branding import render_bottom_decoration
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import get_current_user, render_sidebar, set_logged_in_user
 
@@ -22,7 +23,7 @@ if current_user:
 with st.form("login_form", clear_on_submit=False):
     login_identifier = st.text_input("Username or email")
     password = st.text_input("Password", type="password")
-    submitted = st.form_submit_button("Log in", use_container_width=True)
+    submitted = st.form_submit_button("Log in", width="stretch")
 
 if submitted:
     user = services.auth_service.authenticate(login_identifier, password)
@@ -35,3 +36,4 @@ if submitted:
 
 st.divider()
 st.page_link("pages/02_Accept_Invitation.py", label="I have an invitation link")
+render_bottom_decoration()

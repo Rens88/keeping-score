@@ -61,7 +61,7 @@ def render_sidebar(user: Optional[User]) -> None:
         st.title("Weekend Tracker")
         if user:
             st.caption(f"Logged in as `{user.username or user.email or user.id}` ({user.role})")
-            if st.button("Log out", use_container_width=True):
+            if st.button("Log out", width="stretch"):
                 logout_user()
                 st.rerun()
 

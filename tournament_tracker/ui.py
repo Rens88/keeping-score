@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 from datetime import datetime
+import html
 from typing import Optional
 
 import streamlit as st
@@ -96,18 +98,111 @@ def render_leaderboard(leaderboard: list[LeaderboardRow]) -> None:
         st.info("No completed matches yet. Leaderboard will appear once results are entered.")
         return
 
+    rows_html: list[str] = []
     for row in leaderboard:
-        with st.container(border=True):
-            rank_col, photo_col, main_col, score_col = st.columns([0.6, 1.2, 4, 1.2])
-            with rank_col:
-                st.markdown(f"### {row.rank}")
-            with photo_col:
-                render_photo(row.photo_blob, width=56)
-            with main_col:
-                st.markdown(f"**{row.display_name}**")
-                st.caption(row.motto or "No motto")
-                st.caption(
-                    f"Played {row.matches_played} | W {row.wins} D {row.draws} L {row.losses} | Doubler used: {'Yes' if row.doubler_used else 'No'}"
-                )
-            with score_col:
-                st.metric("Points", f"{row.total_points:.2f}")
+        if row.photo_blob:
+            mime_type = row.photo_mime_type or "image/jpeg"
+            photo_b64 = base64.b64encode(row.photo_blob).decode("ascii")
+            photo_html = (
+                f'<img src="data:{mime_type};base64,{photo_b64}" '
+                f'alt="{html.escape(row.display_name)}" class="lb-photo" />'
+            )
+        else:
+            photo_html = '<span class="lb-photo-placeholder"></span>'
+
+        special_count = 1 if row.doubler_used else 0
+        specials_html = "⚡" * special_count if special_count else "—"
+        rows_html.append(
+            f"""
+            <tr>
+                <td>{photo_html}</td>
+                <td>{html.escape(row.display_name)}</td>
+                <td>{row.matches_played}</td>
+                <td>{row.wins}</td>
+                <td>{row.draws}</td>
+                <td>{row.losses}</td>
+                <td class="lb-points">{row.total_points:.2f}</td>
+                <td class="lb-specials">{specials_html}</td>
+            </tr>
+            """
+        )
+
+    st.markdown(
+        f"""
+        <style>
+            .lb-wrap {{
+                overflow-x: auto;
+            }}
+
+            .lb-table {{
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.95rem;
+                background: rgba(255, 255, 255, 0.85);
+                border-radius: 8px;
+                overflow: hidden;
+                color: #111111 !important;
+            }}
+
+            .lb-table th, .lb-table td {{
+                border-bottom: 1px solid rgba(0,0,0,0.08);
+                text-align: left;
+                padding: 0.35rem 0.45rem;
+                white-space: nowrap;
+                color: #111111 !important;
+            }}
+
+            .lb-table th {{
+                font-weight: 700;
+                background: rgba(215, 31, 38, 0.08);
+            }}
+
+            .lb-photo {{
+                height: 1.05em;
+                width: 1.05em;
+                object-fit: cover;
+                border-radius: 999px;
+                display: inline-block;
+                vertical-align: middle;
+            }}
+
+            .lb-photo-placeholder {{
+                display: inline-block;
+                height: 1.05em;
+                width: 1.05em;
+                border-radius: 999px;
+                background: rgba(0,0,0,0.18);
+                vertical-align: middle;
+            }}
+
+            .lb-points {{
+                font-weight: 700;
+                color: #0d0d0d !important;
+            }}
+
+            .lb-specials {{
+                letter-spacing: 0.08em;
+            }}
+        </style>
+        <div class="lb-wrap">
+            <table class="lb-table">
+                <thead>
+                    <tr>
+                        <th>Photo</th>
+                        <th>Name</th>
+                        <th>Games Played</th>
+                        <th>Won</th>
+                        <th>Draw</th>
+                        <th>Loss</th>
+                        <th>Points</th>
+                        <th>Specials Used</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows_html)}
+                </tbody>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

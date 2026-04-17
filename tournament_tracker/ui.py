@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime
-import html
 from typing import Optional
 
 import streamlit as st
@@ -98,111 +97,50 @@ def render_leaderboard(leaderboard: list[LeaderboardRow]) -> None:
         st.info("No completed matches yet. Leaderboard will appear once results are entered.")
         return
 
-    rows_html: list[str] = []
+    rows: list[dict[str, object]] = []
     for row in leaderboard:
+        photo_value: str | None = None
         if row.photo_blob:
             mime_type = row.photo_mime_type or "image/jpeg"
             photo_b64 = base64.b64encode(row.photo_blob).decode("ascii")
-            photo_html = (
-                f'<img src="data:{mime_type};base64,{photo_b64}" '
-                f'alt="{html.escape(row.display_name)}" class="lb-photo" />'
-            )
-        else:
-            photo_html = '<span class="lb-photo-placeholder"></span>'
+            photo_value = f"data:{mime_type};base64,{photo_b64}"
 
-        special_count = 1 if row.doubler_used else 0
-        specials_html = "⚡" * special_count if special_count else "—"
-        rows_html.append(
-            f"""
-            <tr>
-                <td>{photo_html}</td>
-                <td>{html.escape(row.display_name)}</td>
-                <td>{row.matches_played}</td>
-                <td>{row.wins}</td>
-                <td>{row.draws}</td>
-                <td>{row.losses}</td>
-                <td class="lb-points">{row.total_points:.2f}</td>
-                <td class="lb-specials">{specials_html}</td>
-            </tr>
-            """
+        specials_used = "⚡" if row.doubler_used else ""
+        rows.append(
+            {
+                "Photo": photo_value,
+                "Name": row.display_name,
+                "Games Played": row.matches_played,
+                "Won": row.wins,
+                "Draw": row.draws,
+                "Loss": row.losses,
+                "Points": float(f"{row.total_points:.2f}"),
+                "Specials Used": specials_used,
+            }
         )
 
-    st.markdown(
-        f"""
-        <style>
-            .lb-wrap {{
-                overflow-x: auto;
-            }}
-
-            .lb-table {{
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 0.95rem;
-                background: rgba(255, 255, 255, 0.85);
-                border-radius: 8px;
-                overflow: hidden;
-                color: #111111 !important;
-            }}
-
-            .lb-table th, .lb-table td {{
-                border-bottom: 1px solid rgba(0,0,0,0.08);
-                text-align: left;
-                padding: 0.35rem 0.45rem;
-                white-space: nowrap;
-                color: #111111 !important;
-            }}
-
-            .lb-table th {{
-                font-weight: 700;
-                background: rgba(215, 31, 38, 0.08);
-            }}
-
-            .lb-photo {{
-                height: 1.05em;
-                width: 1.05em;
-                object-fit: cover;
-                border-radius: 999px;
-                display: inline-block;
-                vertical-align: middle;
-            }}
-
-            .lb-photo-placeholder {{
-                display: inline-block;
-                height: 1.05em;
-                width: 1.05em;
-                border-radius: 999px;
-                background: rgba(0,0,0,0.18);
-                vertical-align: middle;
-            }}
-
-            .lb-points {{
-                font-weight: 700;
-                color: #0d0d0d !important;
-            }}
-
-            .lb-specials {{
-                letter-spacing: 0.08em;
-            }}
-        </style>
-        <div class="lb-wrap">
-            <table class="lb-table">
-                <thead>
-                    <tr>
-                        <th>Photo</th>
-                        <th>Name</th>
-                        <th>Games Played</th>
-                        <th>Won</th>
-                        <th>Draw</th>
-                        <th>Loss</th>
-                        <th>Points</th>
-                        <th>Specials Used</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(rows_html)}
-                </tbody>
-            </table>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.dataframe(
+        rows,
+        width="stretch",
+        hide_index=True,
+        column_order=[
+            "Photo",
+            "Name",
+            "Games Played",
+            "Won",
+            "Draw",
+            "Loss",
+            "Points",
+            "Specials Used",
+        ],
+        column_config={
+            "Photo": st.column_config.ImageColumn("Photo", width="small"),
+            "Name": st.column_config.TextColumn("Name", width="medium"),
+            "Games Played": st.column_config.NumberColumn("Games Played", width="small"),
+            "Won": st.column_config.NumberColumn("Won", width="small"),
+            "Draw": st.column_config.NumberColumn("Draw", width="small"),
+            "Loss": st.column_config.NumberColumn("Loss", width="small"),
+            "Points": st.column_config.NumberColumn("Points", format="%.2f", width="small"),
+            "Specials Used": st.column_config.TextColumn("Specials Used", width="small"),
+        },
     )

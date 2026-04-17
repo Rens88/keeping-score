@@ -34,10 +34,14 @@ col4.metric("Completed", len(completed_matches))
 st.divider()
 st.subheader("Quick Actions")
 qa1, qa2, qa3, qa4 = st.columns(4)
-qa1.page_link("pages/08_Admin_Participants_Invitations.py", label="Participants & Invitations")
-qa2.page_link("pages/09_Admin_Schedule.py", label="Manage Schedule")
-qa3.page_link("pages/10_Admin_Results.py", label="Enter/Edit Results")
-qa4.page_link("pages/11_Admin_Backup_Restore.py", label="Backup & Restore")
+if qa1.button("Participants & Invitations", width="stretch", key="admin_dash_quick_participants"):
+    st.switch_page("pages/08_Admin_Participants_Invitations.py")
+if qa2.button("Manage Schedule", width="stretch", key="admin_dash_quick_schedule"):
+    st.switch_page("pages/09_Admin_Schedule.py")
+if qa3.button("Enter/Edit Results", width="stretch", key="admin_dash_quick_results"):
+    st.switch_page("pages/10_Admin_Results.py")
+if qa4.button("Backup & Restore", width="stretch", key="admin_dash_quick_backup"):
+    st.switch_page("pages/11_Admin_Backup_Restore.py")
 
 st.divider()
 st.subheader("Recent Activity")

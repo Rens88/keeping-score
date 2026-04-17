@@ -18,7 +18,8 @@ st.write("Create your participant account using your invitation token.")
 
 if current_user:
     st.info("You are already logged in.")
-    st.page_link("pages/03_Leaderboard.py", label="Go to Leaderboard")
+    if st.button("Go to Leaderboard", width="stretch", key="accept_invite_go_leaderboard"):
+        st.switch_page("pages/03_Leaderboard.py")
     st.stop()
 
 query_token = st.query_params.get("token", "")
@@ -74,5 +75,6 @@ if submitted:
         st.error("Could not create your account. Please check the invitation link and try again.")
 
 st.divider()
-st.page_link("pages/01_Login.py", label="Already have an account? Login")
+if st.button("Already have an account? Login", width="stretch", key="accept_invite_go_login"):
+    st.switch_page("pages/01_Login.py")
 render_bottom_decoration()

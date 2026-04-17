@@ -112,31 +112,52 @@ def apply_cangeroes_theme() -> None:
             .stButton > button,
             .stDownloadButton > button,
             .stFormSubmitButton > button {
-                background: linear-gradient(180deg, var(--uc-red) 0%, var(--uc-red-dark) 100%);
-                color: #ffffff !important;
-                border: 1px solid #8f0f13;
+                background: #d9d9d9 !important;
+                color: #111111 !important;
+                border: 1px solid #9e9e9e !important;
                 border-radius: 10px;
                 font-weight: 700;
-                box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+                box-shadow: none !important;
             }
 
             .stButton > button:hover,
             .stDownloadButton > button:hover,
             .stFormSubmitButton > button:hover {
-                border-color: var(--uc-yellow);
-                color: var(--uc-yellow) !important;
+                background: #cdcdcd !important;
+                color: #111111 !important;
+                border-color: #8a8a8a !important;
+            }
+
+            .stButton > button:focus,
+            .stDownloadButton > button:focus,
+            .stFormSubmitButton > button:focus,
+            .stButton > button:focus-visible,
+            .stDownloadButton > button:focus-visible,
+            .stFormSubmitButton > button:focus-visible {
+                background: #d9d9d9 !important;
+                color: #111111 !important;
+                border-color: #7d7d7d !important;
+                box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.14) !important;
+            }
+
+            .stButton > button:disabled,
+            .stDownloadButton > button:disabled,
+            .stFormSubmitButton > button:disabled {
+                background: #ececec !important;
+                color: #777777 !important;
+                border-color: #cfcfcf !important;
             }
 
             .stButton > button span,
             .stDownloadButton > button span,
-            .stFormSubmitButton > button span {
-                color: #ffffff !important;
-            }
-
+            .stFormSubmitButton > button span,
             .stButton > button:hover span,
             .stDownloadButton > button:hover span,
-            .stFormSubmitButton > button:hover span {
-                color: var(--uc-yellow) !important;
+            .stFormSubmitButton > button:hover span,
+            .stButton > button:disabled span,
+            .stDownloadButton > button:disabled span,
+            .stFormSubmitButton > button:disabled span {
+                color: inherit !important;
             }
 
             div[data-testid="stMetric"] {
@@ -144,6 +165,13 @@ def apply_cangeroes_theme() -> None:
                 border-left: 4px solid var(--uc-red);
                 border-radius: 10px;
                 padding: 0.5rem 0.75rem;
+            }
+
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetric"] label,
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetric"] p,
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetricValue"],
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetricDelta"] {
+                color: #111111 !important;
             }
 
             .uc-header-shell {

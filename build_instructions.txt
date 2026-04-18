@@ -51,3 +51,24 @@ Requested Changes (summarized)
 - User explicitly said "update" again, so `release_info.json` was updated again.
 - Patch version was incremented by 1 and date remained today's date.
 - Nickname was updated to reflect the latest major change (default demo-state loading).
+
+12. Dual-deployment refinement (local LAN + Streamlit Cloud):
+- Refine the same multipage Streamlit codebase to support both local Wi-Fi hosting and Streamlit Community Cloud.
+- Add environment-aware config (`APP_ENV`, DB defaults per environment, secrets/env-driven admin bootstrap).
+- Remove hardcoded admin bootstrap defaults and enforce complete seed values only when needed.
+- Add local LAN defaults in `.streamlit/config.toml`, helper run scripts, and smoke test script.
+- Improve portability by removing machine-specific script paths.
+- Rewrite README with explicit setup/run/deploy/config/storage guidance for both modes.
+
+13. Release metadata update command:
+- User explicitly said "update" again and requested release metadata update.
+- Patch version was incremented by 1, date remained today's date, and nickname was refreshed to summarize the latest platform-readiness work.
+
+14. Windows LAN startup support:
+- Clarify how to run the LAN startup script on Windows.
+- Add a dedicated `scripts/run_lan.bat` launcher for Windows CMD users.
+- Update README LAN instructions to include Bash, PowerShell, and CMD startup options.
+
+15. Verbose Windows launcher behavior:
+- Make the Windows `.bat` launcher verbose with explicit step logging, similar to provided reference style.
+- Ensure the `.bat` always pauses before closing, including on failure.

@@ -14,9 +14,15 @@ render_sidebar(admin_user)
 
 st.title("Admin Dashboard")
 
-if services.config.seed_admin_password == "change-me-now":
+if all(
+    [
+        services.config.seed_admin_username,
+        services.config.seed_admin_email,
+        services.config.seed_admin_password,
+    ]
+) and services.config.seed_admin_password == "change-me-now":
     st.warning(
-        "Default seed admin password is still configured. Set `SEED_ADMIN_PASSWORD` in secrets/env before production use."
+        "Seed admin password is set to `change-me-now`. Use a stronger value in env/secrets for real events."
     )
 
 participants = services.profile_service.list_participant_profiles()

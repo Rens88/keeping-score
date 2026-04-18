@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from pathlib import Path
+import sys
 from typing import Iterable
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from tournament_tracker.bootstrap import initialize_repository
 from tournament_tracker.models import utc_now_iso
@@ -37,11 +43,12 @@ def pairwise(items: list[int]) -> Iterable[tuple[int, int]]:
 def main() -> None:
     config, repo = initialize_repository()
     match_service = MatchService(repo)
-    admin_user = repo.get_user_by_login(config.seed_admin_username) or repo.get_user_by_email(
-        config.seed_admin_email
-    )
+    admin_user = repo.get_first_admin()
     if not admin_user:
-        raise RuntimeError("Seed admin user not found after initialization.")
+        raise RuntimeError(
+            "No admin account found. Configure SEED_ADMIN_USERNAME, SEED_ADMIN_EMAIL, "
+            "and SEED_ADMIN_PASSWORD for first startup."
+        )
 
     participant_ids: list[int] = []
     now = datetime.utcnow()

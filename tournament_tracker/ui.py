@@ -276,6 +276,7 @@ def render_leaderboard(leaderboard: list[LeaderboardRow]) -> None:
             {
                 "Photo": photo_value,
                 "Name": row.display_name,
+                "Motto": row.motto,
                 "Games Played": row.matches_played,
                 "Won": row.wins,
                 "Draw": row.draws,
@@ -293,6 +294,7 @@ def render_leaderboard(leaderboard: list[LeaderboardRow]) -> None:
         column_order=[
             "Photo",
             "Name",
+            "Motto",
             "Games Played",
             "Won",
             "Draw",
@@ -304,6 +306,7 @@ def render_leaderboard(leaderboard: list[LeaderboardRow]) -> None:
         column_config={
             "Photo": st.column_config.ImageColumn("Photo", width="small"),
             "Name": st.column_config.TextColumn("Name", width="medium"),
+            "Motto": st.column_config.TextColumn("Motto", width="medium"),
             "Games Played": st.column_config.NumberColumn("Games Played", width="small"),
             "Won": st.column_config.NumberColumn("Won", width="small"),
             "Draw": st.column_config.NumberColumn("Draw", width="small"),

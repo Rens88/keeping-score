@@ -30,6 +30,12 @@ with col2:
     st.subheader(profile.display_name or profile.username or profile.email or f"User {profile.user_id}")
     st.write(profile.motto or "No motto yet")
     st.caption(f"Role: {profile.role}")
+    if user.role == "participant":
+        activation = services.repo.get_doubler_activation(user.id)
+        if activation:
+            st.caption(f"Doubler: used on match #{activation.match_id}")
+        else:
+            st.caption("Doubler: available")
 
 if user.role == "participant":
     stats = services.ranking_service.get_participant_stats(user.id)

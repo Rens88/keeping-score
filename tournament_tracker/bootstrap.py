@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import streamlit as st
+try:
+    import streamlit as st
+except ModuleNotFoundError:
+    class _NoStreamlit:
+        @staticmethod
+        def cache_resource(*_args: object, **_kwargs: object):
+            def decorator(func):
+                return func
+
+            return decorator
+
+    st = _NoStreamlit()  # type: ignore[assignment]
 
 from tournament_tracker.config import AppConfig, get_config
 from tournament_tracker.repository import SQLiteRepository
@@ -30,17 +41,47 @@ def initialize_repository(config: AppConfig | None = None) -> tuple[AppConfig, S
     cfg = config or get_config()
     repo = SQLiteRepository(cfg.db_path)
     repo.apply_migrations()
-    AuthService(repo).ensure_seed_admin(
-        username=cfg.seed_admin_username,
-        email=cfg.seed_admin_email,
-        password=cfg.seed_admin_password,
+    auth_service = AuthService(repo)
+
+    seed_values = (
+        cfg.seed_admin_username,
+        cfg.seed_admin_email,
+        cfg.seed_admin_password,
     )
+    has_any_seed_value = any(seed_values)
+    has_all_seed_values = all(seed_values)
+
+    if has_any_seed_value and not has_all_seed_values:
+        raise RuntimeError(
+            "Incomplete admin bootstrap configuration. "
+            "Provide SEED_ADMIN_USERNAME, SEED_ADMIN_EMAIL, and SEED_ADMIN_PASSWORD together."
+        )
+
+    if has_all_seed_values:
+        auth_service.ensure_seed_admin(
+            username=cfg.seed_admin_username or "",
+            email=cfg.seed_admin_email or "",
+            password=cfg.seed_admin_password or "",
+        )
+    elif not repo.any_admin_exists():
+        raise RuntimeError(
+            "No admin account found. Configure SEED_ADMIN_USERNAME, SEED_ADMIN_EMAIL, "
+            "and SEED_ADMIN_PASSWORD via environment variables or Streamlit secrets for first startup."
+        )
+
     return cfg, repo
 
 
 @st.cache_resource(show_spinner=False)
 def get_services() -> AppServices:
-    config, repo = initialize_repository()
+    try:
+        config, repo = initialize_repository()
+    except RuntimeError as exc:
+        if hasattr(st, "error") and hasattr(st, "stop"):
+            st.error(str(exc))
+            st.stop()
+        raise
+
     return AppServices(
         config=config,
         repo=repo,

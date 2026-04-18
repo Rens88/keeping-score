@@ -1,238 +1,250 @@
-# Weekend Tournament Tracker (Streamlit MVP)
+# Weekend Tournament Tracker (Streamlit Multipage App)
 
-Production-ready V1 Streamlit app for a weekend group tournament (14 participants) with:
-- app-managed authentication (`admin` and `participant` roles)
-- invitation-only participant onboarding
-- schedule and result management for head-to-head matches
-- leaderboard with per-player points and one-time individual doubler mechanic
-- SQLite-backed storage with migration files for clean V1 deployment
+## 1. Overview
+Weekend Tournament Tracker is a single Streamlit multipage app for running a group weekend tournament.
 
-## Tech choices
-- **Framework:** Streamlit multipage app
-- **Backend/Persistence:** SQLite (`demo_state/weekend_tracker_requested_demo_state.sqlite3` by default)
-- **Password hashing:** PBKDF2-HMAC-SHA256 (salted, high iteration count)
-- **Photo storage (V1 choice):** participant photos are stored as **BLOBs in SQLite**
-  - Why: no extra storage service required, deployment-friendly for MVP
-  - Tradeoff: on Streamlit Community Cloud, local file storage (including SQLite files) is **not guaranteed to persist**
-- **Branding:** Utrecht Cangeroes inspired visual theme, including logo and dynamic hero header media
-- **UX:** responsive/mobile-friendly layout tweaks and bottom decoration image strip
+It supports two roles:
+- `admin`: manages participants, invitations, schedule, results, and doubler troubleshooting
+- `participant`: logs in, views standings/matches/profile, and uses one personal doubler
 
-## Features included
+The same codebase supports both:
+- local hosting on one laptop for users on the same Wi-Fi network
+- deployment on Streamlit Community Cloud
 
-### Authentication and roles
-- Login with username/email + password
-- Role-based access:
-  - participant pages require login
-  - admin pages enforce server-side `require_admin()` checks
-- Seeded first admin account via environment variables or Streamlit secrets
+## 2. Features
 
-### Invitation onboarding
-- Admins generate one-time invitation tokens
-- Token validation checks:
-  - invalid token
-  - expired token
-  - already used token
-- Invitation signup requires:
-  - name
-  - motto
-  - photo upload
-  - username or email + password
+### Admin features
+- Role-protected admin pages and server-side authorization checks
+- Invitation generation with token expiry and one-time use
+- Participant management utilities (including password reset)
+- Match create/edit/delete with:
+  - game type
+  - 2 sides
+  - one or more participants per side
+  - status (`upcoming`, `live`, `completed`)
+- Result entry/edit/clear
+- Doubler troubleshooting (inspect, clear, force reassign for eligible matches)
+- Backup/export and import/restore (full SQLite snapshot)
 
-### Admin capabilities
-- Create, update, delete matches
-- Set game type, side composition (multi-player sides supported), status
-- Enter/edit/clear match results
-- Reset participant passwords
-- Edit participant display names
-- Export full app state (admin-only)
-- Import full app state (admin-only, full overwrite)
-- Doubler troubleshooting controls:
-  - clear used doubler
-  - force reassign doubler to an eligible upcoming match
+### Participant features
+- Login (username/email + password)
+- Invitation-only signup (no public self-signup)
+- Profile with name, motto, photo, role, and stats
+- Leaderboard with:
+  - rank, photo, name, motto
+  - matches played, wins/draws/losses
+  - bonus points, total points
+  - doubler used
+- Upcoming, live, and past match views
+- Personal one-time doubler activation for eligible upcoming matches
 
-### Participant capabilities
-- View leaderboard
-- View upcoming/live/completed matches
-- View participant directory with photo + motto
-- View own profile and stats
-- Change own password
-- Activate own one-time doubler on eligible upcoming matches
-
-### Scoring and doubler
-- Win: `4`
-- Draw: `2.5`
-- Loss: `1`
-- Team result gives all teammates same base result points
-- Doubler applies **only** to that player in that match:
+### Scoring
+- Win = `4`
+- Draw = `2.5`
+- Loss = `1`
+- Team result awards points individually to each participant on that side
+- Doubler affects only the player who activated it:
   - win `8`, draw `5`, loss `2`
 - Players with no completed matches are excluded from leaderboard
 
-## Project structure
+## Architecture notes
 
-```text
-.
-├── app.py
-├── pages/
-│   ├── 01_Login.py
-│   ├── 02_Accept_Invitation.py
-│   ├── 03_Leaderboard.py
-│   ├── 04_Upcoming_Matches.py
-│   ├── 05_Past_Matches.py
-│   ├── 06_My_Profile.py
-│   ├── 07_Admin_Dashboard.py
-│   ├── 08_Admin_Participants_Invitations.py
-│   ├── 09_Admin_Schedule.py
-│   ├── 10_Admin_Results.py
-│   └── 11_Admin_Backup_Restore.py
-├── assets/
-│   └── deocration/
-│       ├── your-image.jpg
-│       └── your-video.mp4
-├── tournament_tracker/
-│   ├── bootstrap.py
-│   ├── branding.py
-│   ├── config.py
-│   ├── models.py
-│   ├── repository.py
-│   ├── security.py
-│   ├── session.py
-│   ├── ui.py
-│   ├── migrations/
-│   │   └── 001_initial.sql
-│   └── services/
-├── scripts/
-│   └── seed_demo_data.py
-└── requirements.txt
-```
+The app is intentionally split so business logic stays out of page files:
+- `app.py` and `pages/`: Streamlit UI/routes
+- `tournament_tracker/services/`: domain logic
+- `tournament_tracker/repository.py`: SQLite data access layer
+- `tournament_tracker/migrations/`: schema migrations
+- `tournament_tracker/models.py`: typed data models
+- `tournament_tracker/config.py`: environment-aware configuration
 
-## Configuration
+V1 persistence is SQLite. The repository/service split keeps migration to Postgres straightforward later.
 
-Set via environment variables or Streamlit secrets:
+## 3. Local setup
 
-- `DB_PATH` (default: `demo_state/weekend_tracker_requested_demo_state.sqlite3`)
-- `APP_BASE_URL` (optional, used to render invitation links)
-- `DEFAULT_INVITE_EXPIRY_HOURS` (default: `72`)
-- `SEED_ADMIN_USERNAME` (default: `admin`)
-- `SEED_ADMIN_EMAIL` (default: `admin@example.com`)
-- `SEED_ADMIN_PASSWORD` (default: `change-me-now`) **set this in real use**
+### 3.1 Prerequisites
+- Python 3.10+
+- pip
 
-Example `.streamlit/secrets.toml`:
-
-```toml
-SEED_ADMIN_USERNAME = "admin"
-SEED_ADMIN_EMAIL = "admin@weekend.local"
-SEED_ADMIN_PASSWORD = "replace-with-strong-password"
-DB_PATH = "demo_state/weekend_tracker_requested_demo_state.sqlite3"
-APP_BASE_URL = "https://your-app-name.streamlit.app"
-DEFAULT_INVITE_EXPIRY_HOURS = "72"
-```
-
-## Local run
-
-1. Create virtual environment and install dependencies:
-
+### 3.2 Install dependencies
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-2. Run app from the repository root:
+### 3.3 Initialize database and admin bootstrap
 
+Two common options:
+
+1. Use bundled demo-state database (default local mode):
+- default DB path is `demo_state/weekend_tracker_requested_demo_state.sqlite3`
+- includes demo users/matches for quick start
+
+2. Start with a fresh database:
 ```bash
-streamlit run app.py
+export APP_ENV=local
+export DB_PATH=data/tournament.db
+export SEED_ADMIN_USERNAME=admin
+export SEED_ADMIN_EMAIL=admin@weekend.local
+export SEED_ADMIN_PASSWORD='replace-with-strong-password'
 ```
 
-3. Optional: seed demo participants and matches:
+Then run:
+```bash
+python scripts/smoke_test.py
+```
 
+Optional demo seeding on a fresh DB:
 ```bash
 python scripts/seed_demo_data.py
 ```
 
-Demo participant password from seed script: `demo-pass-123`
+### 3.4 Run locally
+```bash
+streamlit run app.py
+```
 
-### Header media (image + mp4)
+## 4. Run on local Wi-Fi (LAN mode)
 
-The app header can randomly show either an image or an mp4 video.
-The app footer also renders decoration images from the same folder.
+The host laptop runs the app; other participants connect from phones/laptops on the same Wi-Fi.
 
-Put files in:
-- `assets/deocration`
+### 4.1 Start app listening on network interface
+Using helper scripts:
+```bash
+# macOS/Linux/WSL/Git Bash
+bash scripts/run_lan.sh
+```
 
-Supported header media formats:
-- images: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`
-- video: `.mp4`
+```powershell
+# Windows PowerShell
+.\scripts\run_lan.ps1
+```
 
-If no local media is found, a remote Utrecht Cangeroes fallback image is shown.
+```bat
+:: Windows Command Prompt (CMD)
+scripts\run_lan.bat
+```
+The `.bat` launcher is verbose and always pauses before the window closes.
 
-## Streamlit Community Cloud deployment
+Or explicit command:
+```bash
+streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+```
 
-1. Push this repo to GitHub.
-2. In Streamlit Community Cloud, click **Create app** and select repo/branch with `app.py` as entrypoint.
-3. Add secrets in app settings (same keys as above, especially `SEED_ADMIN_PASSWORD`).
-4. Ensure `requirements.txt` is in repo root.
-5. Deploy.
+Note:
+- `.streamlit/config.toml` already contains local-friendly defaults (`0.0.0.0:8501`, headless).
+- CLI flags or environment variables override those defaults when needed.
 
-Important for V1 on Community Cloud:
-- `data/tournament.db` is local file storage and may be deleted by the platform.
-- Use this setup for weekend/MVP use only.
-- For reliable long-term persistence, switch to Postgres (or another external DB) and object storage for photos.
+### 4.2 Find host laptop local IP
+- Windows: `ipconfig`
+- macOS/Linux: `ifconfig` or `ip addr`
 
-Reference docs:
-- Deploy overview: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app
-- App dependencies: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies
-- File organization: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/file-organization
-- Secrets management: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management
-- Local SQLite persistence note: https://docs.streamlit.io/develop/concepts/connections/connecting-to-data
+### 4.3 Connect from other devices
+Open in browser:
+```text
+http://<HOST_LOCAL_IP>:8501
+```
 
-## Admin export and import (full state)
+### 4.4 LAN caveats / troubleshooting
+- Host laptop must stay on and connected to the same Wi-Fi
+- Local firewall may block inbound traffic on chosen port
+- Guest Wi-Fi sometimes isolates devices (client isolation)
+- Ensure app listens on `0.0.0.0` (not only `127.0.0.1`)
+- Port can be changed with `--server.port` or `STREAMLIT_SERVER_PORT`
 
-Use `Admin -> Backup & Restore`:
-- **Export** downloads a full database snapshot (`.sqlite3`) containing everything:
-  - users, roles, password hashes
-  - participant profiles and photos
-  - invitations
-  - matches, teams, participants
-  - results and doubler activations
-  - activity log
-- **Import** replaces the entire current state with the uploaded snapshot.
+## 5. Deploy to Streamlit Community Cloud
 
-Notes:
-- Import is destructive (full overwrite).
-- Keep backup files secure, because they contain sensitive authentication data (hashed passwords).
-- After import, admins are logged out and must log in again.
+### 5.1 Repository expectations
+- `app.py` at repo root
+- `pages/` for multipage navigation
+- `requirements.txt` at repo root
+- no separate app split required
 
-## Migrations strategy (V1)
+### 5.2 Deployment steps
+1. Push repo to GitHub
+2. In Streamlit Community Cloud: **Create app**
+3. Select repo/branch and set entrypoint to `app.py`
+4. Add secrets in app settings (example below)
+5. Deploy
 
-- SQL migrations are stored in `tournament_tracker/migrations/*.sql`.
-- On startup, the app applies unapplied migrations in filename order.
-- Applied files are tracked in `schema_migrations`.
+### 5.3 Recommended Community Cloud secrets
+```toml
+APP_ENV = "cloud"
+DB_PATH = "data/tournament_cloud.sqlite3"
+APP_BASE_URL = "https://your-app-name.streamlit.app"
+DEFAULT_INVITE_EXPIRY_HOURS = "72"
 
-This keeps V1 simple while making schema evolution explicit.
+# Required on first deployment to create initial admin if DB has no admin yet
+SEED_ADMIN_USERNAME = "admin"
+SEED_ADMIN_EMAIL = "admin@your-domain.com"
+SEED_ADMIN_PASSWORD = "replace-with-strong-password"
+```
 
-## Core schema
+### 5.4 Cloud behavior notes
+- SQLite/photo data are local to the running instance filesystem and may be ephemeral
+- Use admin export regularly if event data matters
+- Same app works in cloud mode, but durability is limited in V1
 
-V1 tables:
-- `users`
-- `participant_profiles`
-- `invitations`
-- `matches`
-- `match_sides`
-- `match_participants`
-- `match_results`
-- `doubler_activations`
-- `activity_log`
+## 6. Configuration
 
-## Security notes
+Use environment variables locally and Streamlit secrets in cloud.
 
-- Passwords are never stored in plaintext.
-- Invitation tokens are stored hashed (SHA-256), not raw.
-- Admin pages enforce role checks server-side.
+| Key | Default | Notes |
+|---|---|---|
+| `APP_ENV` | `local` | `local` or `cloud`; influences default DB path |
+| `DB_PATH` | `demo_state/weekend_tracker_requested_demo_state.sqlite3` in `local`, `data/tournament_cloud.sqlite3` in `cloud` | SQLite file path |
+| `APP_BASE_URL` | empty | Used for invitation links |
+| `DEFAULT_INVITE_EXPIRY_HOURS` | `72` | Invitation validity duration |
+| `PHOTO_STORAGE_MODE` | `db_blob` | V1 uses DB blob storage |
+| `PHOTO_UPLOAD_PATH` | empty | Reserved for optional filesystem photo mode |
+| `SEED_ADMIN_USERNAME` | none | Required with email/password on first startup if DB has no admin |
+| `SEED_ADMIN_EMAIL` | none | Required with username/password on first startup if DB has no admin |
+| `SEED_ADMIN_PASSWORD` | none | Required with username/email on first startup if DB has no admin |
+| `STREAMLIT_SERVER_ADDRESS` | `0.0.0.0` (helper script) | LAN run helper input |
+| `STREAMLIT_SERVER_PORT` | `8501` (helper script) | LAN run helper input |
 
-## Future extensions
+Bootstrap rule:
+- If DB already has an admin, seed values are optional.
+- If DB has no admin, all three `SEED_ADMIN_*` values must be provided together.
 
-- Swap SQLite repository for Postgres-backed repository implementation
-- Durable media storage (S3/GCS or object store)
-- Additional mechanics (betting, extra power cards, streak bonuses)
-- Match-specific score details (sets/goals/rounds)
-- Public spectator view with read-only mode
+## 7. Data/storage notes
+
+- V1 database: SQLite (migrations in `tournament_tracker/migrations/`)
+- Participant photos: stored as BLOBs in SQLite (simple, no extra service)
+- Local mode: data persists while local DB file persists
+- Community Cloud: local filesystem persistence is not guaranteed
+- Backup/restore page is included for operational safety during the event
+
+## 8. Future extensions
+
+- Additional mechanics (betting/predictions, streak cards, extra powerups)
+- Result approval workflow
+- Richer match statistics per game
+- Postgres repository implementation with same service layer
+- Durable object storage if photo volume grows
+
+## Included pages
+
+- Login
+- Accept invitation / create account
+- Leaderboard
+- Upcoming matches
+- Past matches
+- My profile
+- Admin dashboard
+- Admin participants / invitations
+- Admin schedule management
+- Admin result entry
+- Admin backup & restore
+
+## Smoke-test strategy
+
+Run:
+```bash
+python scripts/smoke_test.py
+```
+
+This verifies:
+- config loading
+- repository initialization/migrations
+- basic DB access through the current configured `DB_PATH`

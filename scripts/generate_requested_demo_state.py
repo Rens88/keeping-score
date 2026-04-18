@@ -3,11 +3,16 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from tournament_tracker.repository import SQLiteRepository
 from tournament_tracker.security import hash_password
 
-OUTPUT_PATH = Path("/mnt/c/users/rmeer/codelibrary/keeping-score/demo_state/weekend_tracker_requested_demo_state.sqlite3")
+OUTPUT_PATH = PROJECT_ROOT / "demo_state" / "weekend_tracker_requested_demo_state.sqlite3"
 DEMO_PASSWORD = "1234"
 
 PLAYERS = [

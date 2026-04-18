@@ -1084,6 +1084,16 @@ class SQLiteRepository:
             ).fetchall()
         return [ActivityItem(timestamp=row["created_at"], message=row["message"]) for row in rows]
 
+    def get_first_admin(self) -> Optional[User]:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE role = 'admin' ORDER BY id LIMIT 1"
+            ).fetchone()
+        return self._row_to_user(row) if row else None
+
+    def any_admin_exists(self) -> bool:
+        return self.get_first_admin() is not None
+
     def ensure_admin_exists(
         self,
         *,

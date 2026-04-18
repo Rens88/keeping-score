@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import logout_user, render_sidebar, require_admin
@@ -13,7 +13,7 @@ services = get_services()
 admin_user = require_admin(services)
 render_sidebar(admin_user)
 
-st.title("Backup and Restore")
+render_page_intro("Backup and Restore", "Export the full tournament state or replace it from a trusted backup.", eyebrow="Admin")
 st.warning(
     "Backups contain sensitive data, including password hashes, profile photos, and full tournament history. "
     "Handle backup files securely."

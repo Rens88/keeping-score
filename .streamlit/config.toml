@@ -5,3 +5,10 @@ headless = true
 
 [client]
 showSidebarNavigation = false
+
+[theme]
+base = "light"
+primaryColor = "#ea580c"
+backgroundColor = "#fff9f2"
+secondaryBackgroundColor = "#fff3e8"
+textColor = "#171717"

@@ -4,7 +4,7 @@ from datetime import datetime, time
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.services.match_service import DEFAULT_GAME_TYPES
@@ -16,7 +16,7 @@ services = get_services()
 admin_user = require_admin(services)
 render_sidebar(admin_user)
 
-st.title("Manage Schedule")
+render_page_intro("Manage Schedule", "Create, edit, and remove matches with clear pairings and timing.", eyebrow="Admin")
 
 participants = services.profile_service.list_participant_profiles()
 participant_label_to_id: dict[str, int] = {}

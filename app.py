@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import get_current_user, render_sidebar
 
@@ -12,7 +12,10 @@ services = get_services()
 current_user = get_current_user(services)
 render_sidebar(current_user)
 
-st.title("Weekend Tournament Tracker")
+render_page_intro(
+    "Weekend Tournament Tracker",
+    "Use the quick links below to move between leaderboard, matches, profiles, and admin tools.",
+)
 
 if current_user:
     st.success("You are logged in.")

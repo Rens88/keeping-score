@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
@@ -13,7 +13,11 @@ services = get_services()
 admin_user = require_admin(services)
 render_sidebar(admin_user)
 
-st.title("Participants and Invitations")
+render_page_intro(
+    "Participants and Invitations",
+    "Invite players, manage participant details, and troubleshoot doubler state.",
+    eyebrow="Admin",
+)
 
 st.subheader("Generate invitation")
 with st.form("create_invitation_form"):

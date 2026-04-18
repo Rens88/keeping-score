@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
@@ -14,7 +14,7 @@ services = get_services()
 admin_user = require_admin(services)
 render_sidebar(admin_user)
 
-st.title("Enter or Edit Results")
+render_page_intro("Enter or Edit Results", "Record outcomes, add notes, or reset a match back to upcoming or live.", eyebrow="Admin")
 
 cards = services.match_service.list_matches_for_view()
 if not cards:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import render_sidebar, require_admin
 
@@ -12,7 +12,7 @@ services = get_services()
 admin_user = require_admin(services)
 render_sidebar(admin_user)
 
-st.title("Admin Dashboard")
+render_page_intro("Admin Dashboard", "A quick snapshot of participants, matches, and recent activity.", eyebrow="Admin")
 
 if all(
     [

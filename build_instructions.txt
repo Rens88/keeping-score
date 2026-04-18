@@ -72,3 +72,70 @@ Requested Changes (summarized)
 15. Verbose Windows launcher behavior:
 - Make the Windows `.bat` launcher verbose with explicit step logging, similar to provided reference style.
 - Ensure the `.bat` always pauses before closing, including on failure.
+
+16. LAN verification troubleshooting:
+- Provide exact steps to verify laptop and phone are on the same local subnet (expected `192.168.2.x`).
+- Clarify which address to use from phone browser (`http://<laptop-lan-ip>:8501`, not `0.0.0.0`).
+- Provide practical checks for Wi-Fi details, VPN/mobile-data interference, and router client isolation.
+
+17. Firewall validation and next diagnostics:
+- Confirm Windows inbound firewall rule for TCP 8501 is correctly created on the Private profile.
+- Continue with targeted diagnostics to isolate whether remaining failure is due to router client isolation, wrong active network profile, or app-specific blocking.
+
+18. Non-Streamlit LAN connectivity test result:
+- User confirmed a plain Python HTTP server on port 9999 was also unreachable from phone.
+- Use this as evidence to prioritize LAN path diagnostics (firewall scope for test port, device isolation, or route/profile mismatch) over Streamlit-specific fixes.
+
+19. External second-opinion request:
+- Prepare a concise, high-context troubleshooting prompt the user can paste into another LLM.
+- Include attempted steps, confirmed facts, and request new diagnostic ideas without repeating already-tried basics.
+
+20. LAN connectivity debugging outcome (other-LLM summary):
+- Goal:
+  - Access a locally hosted Streamlit app (`0.0.0.0:8501`) from another device (phone) on the same Wi-Fi network.
+- Observed behavior:
+  - App runs correctly on laptop (`localhost` works).
+  - App not accessible from phone via `http://<local-ip>:port`.
+  - Same issue reproduced with simple server (`python -m http.server`), confirming issue is not Streamlit-specific.
+- Key diagnostic findings:
+  - Same subnet (`192.168.2.x`), devices visible in router.
+  - Correct bind (`0.0.0.0`) and listening ports confirmed.
+  - Critical test: firewall ON -> connection fails; firewall OFF -> connection works.
+  - Conclusion: Windows Firewall is the blocker.
+- Root cause:
+  - Windows Defender Firewall had auto-generated inbound `Block` rules for `python3.12.exe` on `Private, Public` profiles.
+  - These can be created when Python first opens a listening socket and access is denied.
+- Important firewall behavior:
+  - Block rules override allow rules.
+  - Allow rules (including specific ports/subnets) do not work while conflicting block rules exist.
+  - "Query User" style rules can persist with high precedence.
+- Fix applied:
+  - Removed blocking Python inbound rules:
+    - `Get-NetFirewallRule -Enabled True -Direction Inbound -Action Block | Where-Object {$_.DisplayName -eq "Python"} | Remove-NetFirewallRule`
+  - Added clean program-based allow rule:
+    - `New-NetFirewallRule -DisplayName "Allow Python LAN (Private)" -Direction Inbound -Action Allow -Program "<python.exe path>" -Protocol TCP -Profile Private -RemoteAddress 192.168.2.0/24`
+- Final result:
+  - Firewall ON and LAN access works from phone.
+  - Works for both `http.server` and Streamlit.
+- Key lessons:
+  - Always test with `python -m http.server` to separate app vs network issues.
+  - If bind/subnet are correct and firewall OFF works, suspect firewall rule precedence.
+  - Check block rules first (`Get-NetFirewallRule -Action Block`), then allow rules.
+  - Prefer program-level allow rules, scoped to Private profile and local subnet.
+  - Windows Store Python (`WindowsApps`) can produce confusing firewall rule behavior.
+- Classification:
+  - Category: Networking -> Local LAN -> Firewall.
+  - Failure mode: Silent block due to hidden high-precedence rule.
+  - Detection signal: Works when firewall OFF, fails otherwise.
+- Recommended future setup:
+  - Keep one clean allow rule for Python executable.
+  - Scope to Private network and local subnet.
+  - Avoid duplicate/conflicting rules.
+  - Periodically clean firewall rules.
+
+21. Comprehensive UI readability refresh:
+- Prioritize readable contrast across light/dark contexts over strict color preference, while still leaning on an orange, white, and black-friendly palette.
+- Strengthen shared theme styling for titles, body text, captions, helper instructions, inputs, selects, uploaders, toggles, tabs, alerts, metrics, tables, and button states.
+- Add consistent page intro cards so page titles and instructions stay visible and easy to scan.
+- Make the top quick-navigation buttons more mobile-friendly by splitting them into shorter rows instead of one cramped strip.
+- Improve clarity on login, invitation, and profile screens with clearer section framing and guidance copy.

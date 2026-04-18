@@ -52,35 +52,41 @@ def require_admin(services: AppServices) -> User:
     st.stop()
 
 
+def _render_navigation_rows(buttons: list[tuple[str, str, str]], row_size: int = 3) -> None:
+    for start in range(0, len(buttons), row_size):
+        row_buttons = buttons[start:start + row_size]
+        row_cols = st.columns(len(row_buttons))
+        for col, (label, page, key) in zip(row_cols, row_buttons):
+            if col.button(label, width="stretch", key=key):
+                st.switch_page(page)
+
+
 def render_main_navigation(user: Optional[User]) -> None:
     if not user:
         return
 
     st.markdown("**Quick Navigation**")
-    core_cols = st.columns(5)
-    if core_cols[0].button("🏠 Home", width="stretch", key="top_nav_home"):
-        st.switch_page("app.py")
-    if core_cols[1].button("🏆 Leaderboard", width="stretch", key="top_nav_leaderboard"):
-        st.switch_page("pages/03_Leaderboard.py")
-    if core_cols[2].button("📅 Upcoming", width="stretch", key="top_nav_upcoming"):
-        st.switch_page("pages/04_Upcoming_Matches.py")
-    if core_cols[3].button("📜 Past", width="stretch", key="top_nav_past"):
-        st.switch_page("pages/05_Past_Matches.py")
-    if core_cols[4].button("👤 My Profile", width="stretch", key="top_nav_profile"):
-        st.switch_page("pages/06_My_Profile.py")
+    st.caption("Use the top row for fast page switches without opening the sidebar.")
+    _render_navigation_rows(
+        [
+            ("🏠 Home", "app.py", "top_nav_home"),
+            ("🏆 Leaderboard", "pages/03_Leaderboard.py", "top_nav_leaderboard"),
+            ("📅 Upcoming", "pages/04_Upcoming_Matches.py", "top_nav_upcoming"),
+            ("📜 Past", "pages/05_Past_Matches.py", "top_nav_past"),
+            ("👤 My Profile", "pages/06_My_Profile.py", "top_nav_profile"),
+        ]
+    )
 
     if user.role == "admin":
-        admin_cols = st.columns(5)
-        if admin_cols[0].button("🛡️ Admin Home", width="stretch", key="top_nav_admin_home"):
-            st.switch_page("pages/07_Admin_Dashboard.py")
-        if admin_cols[1].button("👥 Participants", width="stretch", key="top_nav_admin_participants"):
-            st.switch_page("pages/08_Admin_Participants_Invitations.py")
-        if admin_cols[2].button("🗓️ Schedule", width="stretch", key="top_nav_admin_schedule"):
-            st.switch_page("pages/09_Admin_Schedule.py")
-        if admin_cols[3].button("✅ Results", width="stretch", key="top_nav_admin_results"):
-            st.switch_page("pages/10_Admin_Results.py")
-        if admin_cols[4].button("💾 Backup", width="stretch", key="top_nav_admin_backup"):
-            st.switch_page("pages/11_Admin_Backup_Restore.py")
+        _render_navigation_rows(
+            [
+                ("🛡️ Admin Home", "pages/07_Admin_Dashboard.py", "top_nav_admin_home"),
+                ("👥 Participants", "pages/08_Admin_Participants_Invitations.py", "top_nav_admin_participants"),
+                ("🗓️ Schedule", "pages/09_Admin_Schedule.py", "top_nav_admin_schedule"),
+                ("✅ Results", "pages/10_Admin_Results.py", "top_nav_admin_results"),
+                ("💾 Backup", "pages/11_Admin_Backup_Restore.py", "top_nav_admin_backup"),
+            ]
+        )
 
     st.divider()
 

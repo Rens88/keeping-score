@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import render_sidebar, require_login
@@ -14,7 +14,7 @@ services = get_services()
 user = require_login(services)
 render_sidebar(user)
 
-st.title("Upcoming Matches")
+render_page_intro("Upcoming Matches", "See live fixtures, upcoming matches, and the current state of your doubler.")
 
 if user.role == "participant":
     st.subheader("My Doubler")

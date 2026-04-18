@@ -46,11 +46,11 @@ class AppConfig:
 
 
 def get_config() -> AppConfig:
-    db_path_raw = _get_setting("DB_PATH", "data/tournament.db")
+    db_path_raw = _get_setting("DB_PATH", "demo_state/weekend_tracker_requested_demo_state.sqlite3")
     default_invite_expiry = int(_get_setting("DEFAULT_INVITE_EXPIRY_HOURS", "72") or "72")
 
     return AppConfig(
-        db_path=Path(db_path_raw or "data/tournament.db"),
+        db_path=Path(db_path_raw or "demo_state/weekend_tracker_requested_demo_state.sqlite3"),
         app_base_url=(_get_setting("APP_BASE_URL", "") or "").rstrip("/"),
         default_invite_expiry_hours=default_invite_expiry,
         seed_admin_username=_get_setting("SEED_ADMIN_USERNAME", "admin") or "admin",

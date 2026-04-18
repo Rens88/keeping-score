@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+from html import escape
+import json
 from pathlib import Path
 import random
 
@@ -25,17 +27,27 @@ def apply_cangeroes_theme() -> None:
         """
         <style>
             :root {
-                --uc-red: #d71f26;
-                --uc-red-dark: #b3171d;
-                --uc-yellow: #f6d138;
+                --uc-orange: #ea580c;
+                --uc-orange-dark: #c2410c;
+                --uc-orange-soft: #fff3e8;
+                --uc-orange-softer: #ffedd5;
                 --uc-black: #111111;
-                --uc-ivory: #f8f5ef;
+                --uc-charcoal: #2f2f2f;
+                --uc-white: #ffffff;
+                --uc-surface: #fffdfa;
+                --uc-border: #d6d3d1;
+                --uc-muted: #4b5563;
+
+                /* Backward-compatible aliases for existing class rules. */
+                --uc-red: var(--uc-orange);
+                --uc-red-dark: var(--uc-orange-dark);
+                --uc-yellow: var(--uc-orange-softer);
+                --uc-ivory: var(--uc-surface);
             }
 
             .stApp {
-                background:
-                    linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,245,239,1) 100%);
-                color: var(--uc-black);
+                background: linear-gradient(180deg, #ffffff 0%, #fff9f2 100%);
+                color: var(--uc-black) !important;
             }
 
             /* Streamlit keeps a fixed top header. Add enough top offset so
@@ -56,65 +68,115 @@ def apply_cangeroes_theme() -> None:
             }
 
             h1, h2, h3 {
-                color: var(--uc-red);
+                color: var(--uc-black);
                 text-transform: uppercase;
                 letter-spacing: 0.02em;
                 font-weight: 900;
             }
 
-            /* Main-area body and form labels: lock readable contrast regardless
-               of Streamlit light/dark mode setting. */
+            /* Main-area text contrast lock. */
             [data-testid="stAppViewContainer"] .main label,
             [data-testid="stAppViewContainer"] .main p,
             [data-testid="stAppViewContainer"] .main li,
             [data-testid="stAppViewContainer"] .main small,
-            [data-testid="stAppViewContainer"] .main [data-testid="InputInstructions"] {
-                color: #1c1c1c !important;
+            [data-testid="stAppViewContainer"] .main [data-testid="InputInstructions"],
+            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"],
+            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"] *,
+            [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] *,
+            [data-testid="stAppViewContainer"] .main .stMarkdown * {
+                color: var(--uc-black) !important;
+                -webkit-text-fill-color: var(--uc-black) !important;
+                opacity: 1 !important;
             }
 
-            /* Inputs/selects/textareas rendered with an always-readable surface. */
+            /* Inputs/selects/textareas always readable in both Streamlit modes. */
             [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] > div,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] > div,
-            [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] > div {
-                background-color: #ffffff !important;
-                color: #111111 !important;
-                border: 1px solid #c7c7c7 !important;
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] > div,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="base-input"] > div {
+                background-color: var(--uc-white) !important;
+                color: var(--uc-black) !important;
+                border: 1px solid var(--uc-border) !important;
                 box-shadow: none !important;
+            }
+
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] > div:focus-within,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] > div:focus-within,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] > div:focus-within,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="base-input"] > div:focus-within {
+                border-color: var(--uc-orange) !important;
+                box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.2) !important;
             }
 
             [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] input,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] input,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] textarea,
-            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] * {
-                color: #111111 !important;
-                -webkit-text-fill-color: #111111 !important;
-            }
-
-            [data-testid="stAppViewContainer"] .main ::placeholder {
-                color: #6d6d6d !important;
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] *,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] button,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] svg,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] svg {
+                color: var(--uc-black) !important;
+                -webkit-text-fill-color: var(--uc-black) !important;
                 opacity: 1 !important;
             }
 
+            [data-testid="stAppViewContainer"] .main ::placeholder {
+                color: var(--uc-muted) !important;
+                opacity: 1 !important;
+            }
+
+            /* Dropdown menu portal colors. */
+            div[role="listbox"],
+            ul[role="listbox"] {
+                background: var(--uc-white) !important;
+                border: 1px solid var(--uc-border) !important;
+            }
+
+            div[role="option"],
+            li[role="option"] {
+                color: var(--uc-black) !important;
+                background: var(--uc-white) !important;
+            }
+
+            div[role="option"][aria-selected="true"],
+            li[role="option"][aria-selected="true"] {
+                color: var(--uc-black) !important;
+                background: var(--uc-orange-soft) !important;
+            }
+
+            /* Checkbox/radio controls with explicit readable contrast. */
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="checkbox"] > label > div:first-child,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="radio"] > div:first-child {
+                background: var(--uc-white) !important;
+                border-color: var(--uc-border) !important;
+            }
+
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="checkbox"] svg,
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="radio"] svg {
+                color: var(--uc-orange-dark) !important;
+                fill: var(--uc-orange-dark) !important;
+            }
+
             [data-testid="stSidebar"] {
-                background: linear-gradient(180deg, #141414 0%, #1e1e1e 100%);
-                border-right: 3px solid var(--uc-red);
+                background: linear-gradient(180deg, #121212 0%, #1d1d1d 100%);
+                border-right: 3px solid var(--uc-orange);
             }
 
             [data-testid="stSidebar"] * {
-                color: #f6f6f6;
+                color: #f7f7f7 !important;
             }
 
             [data-testid="stSidebar"] h2,
             [data-testid="stSidebar"] h3 {
-                color: var(--uc-yellow);
+                color: #ffd3b3 !important;
             }
 
             .stButton > button,
             .stDownloadButton > button,
             .stFormSubmitButton > button {
-                background: #d9d9d9 !important;
-                color: #111111 !important;
-                border: 1px solid #9e9e9e !important;
+                background: var(--uc-white) !important;
+                color: var(--uc-black) !important;
+                border: 1px solid var(--uc-charcoal) !important;
                 border-radius: 10px;
                 font-weight: 700;
                 box-shadow: none !important;
@@ -123,9 +185,9 @@ def apply_cangeroes_theme() -> None:
             .stButton > button:hover,
             .stDownloadButton > button:hover,
             .stFormSubmitButton > button:hover {
-                background: #cdcdcd !important;
-                color: #111111 !important;
-                border-color: #8a8a8a !important;
+                background: var(--uc-orange-soft) !important;
+                color: var(--uc-black) !important;
+                border-color: var(--uc-orange) !important;
             }
 
             .stButton > button:focus,
@@ -134,18 +196,18 @@ def apply_cangeroes_theme() -> None:
             .stButton > button:focus-visible,
             .stDownloadButton > button:focus-visible,
             .stFormSubmitButton > button:focus-visible {
-                background: #d9d9d9 !important;
-                color: #111111 !important;
-                border-color: #7d7d7d !important;
-                box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.14) !important;
+                background: var(--uc-white) !important;
+                color: var(--uc-black) !important;
+                border-color: var(--uc-orange) !important;
+                box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.25) !important;
             }
 
             .stButton > button:disabled,
             .stDownloadButton > button:disabled,
             .stFormSubmitButton > button:disabled {
-                background: #ececec !important;
-                color: #777777 !important;
-                border-color: #cfcfcf !important;
+                background: #f3f4f6 !important;
+                color: #6b7280 !important;
+                border-color: #d1d5db !important;
             }
 
             .stButton > button span,
@@ -160,9 +222,22 @@ def apply_cangeroes_theme() -> None:
                 color: inherit !important;
             }
 
+            /* Tabs contrast fix (unselected tabs were fading into background). */
+            [data-baseweb="tab-list"] button[role="tab"] {
+                color: var(--uc-muted) !important;
+                border-bottom: 3px solid transparent !important;
+                opacity: 1 !important;
+            }
+
+            [data-baseweb="tab-list"] button[role="tab"][aria-selected="true"] {
+                color: var(--uc-orange-dark) !important;
+                border-bottom-color: var(--uc-orange) !important;
+                font-weight: 800 !important;
+            }
+
             div[data-testid="stMetric"] {
-                background: #ffffff;
-                border-left: 4px solid var(--uc-red);
+                background: var(--uc-white);
+                border-left: 4px solid var(--uc-orange);
                 border-radius: 10px;
                 padding: 0.5rem 0.75rem;
             }
@@ -174,22 +249,42 @@ def apply_cangeroes_theme() -> None:
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetricLabel"],
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetric"] span,
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetric"] div {
-                color: #111111 !important;
-                -webkit-text-fill-color: #111111 !important;
+                color: var(--uc-black) !important;
+                -webkit-text-fill-color: var(--uc-black) !important;
                 opacity: 1 !important;
             }
 
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetricLabel"] > div,
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetricValue"] > div,
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetricDelta"] > div {
-                color: #111111 !important;
-                -webkit-text-fill-color: #111111 !important;
+                color: var(--uc-black) !important;
+                -webkit-text-fill-color: var(--uc-black) !important;
+            }
+
+            /* Status/information messages: readable regardless of base theme. */
+            [data-testid="stAlert"] {
+                background: var(--uc-orange-soft) !important;
+                border: 1px solid #fdba74 !important;
+                border-left: 6px solid var(--uc-orange) !important;
+                border-radius: 12px !important;
+            }
+
+            [data-testid="stAlert"] * {
+                color: var(--uc-black) !important;
+                -webkit-text-fill-color: var(--uc-black) !important;
+                opacity: 1 !important;
+            }
+
+            [data-testid="stCode"] pre,
+            code {
+                color: var(--uc-black) !important;
+                background: #fff7ed !important;
             }
 
             .uc-header-shell {
-                background: #ffffff;
+                background: var(--uc-white);
                 border: 2px solid rgba(17,17,17,0.08);
-                border-left: 8px solid var(--uc-red);
+                border-left: 8px solid var(--uc-orange);
                 border-radius: 14px;
                 padding: 0.6rem 0.8rem;
                 margin-top: 0.2rem;
@@ -208,7 +303,7 @@ def apply_cangeroes_theme() -> None:
             .uc-title {
                 font-size: 1.55rem;
                 line-height: 1.1;
-                color: var(--uc-red);
+                color: var(--uc-orange-dark);
                 font-weight: 900;
                 letter-spacing: 0.02em;
                 text-transform: uppercase;
@@ -224,12 +319,43 @@ def apply_cangeroes_theme() -> None:
             .uc-decoration-wrap {
                 margin-top: 1.2rem;
                 padding-top: 0.6rem;
-                border-top: 1px solid rgba(0, 0, 0, 0.08);
+                border-top: 1px solid rgba(0, 0, 0, 0.12);
             }
 
             .uc-decoration-media {
                 border-radius: 12px;
                 overflow: hidden;
+            }
+
+            .uc-release-footer {
+                margin-top: 0.55rem;
+                padding-top: 0.45rem;
+                border-top: 1px solid rgba(0, 0, 0, 0.1);
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                align-items: center;
+                column-gap: 0.5rem;
+                font-size: 0.78rem;
+                letter-spacing: 0.03em;
+                color: var(--uc-muted);
+            }
+
+            .uc-release-left {
+                text-align: left;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .uc-release-center {
+                text-align: center;
+                font-weight: 700;
+                white-space: nowrap;
+            }
+
+            .uc-release-right {
+                text-align: right;
+                white-space: nowrap;
             }
 
             @media (max-width: 900px) {
@@ -247,6 +373,10 @@ def apply_cangeroes_theme() -> None:
 
                 .uc-subtitle {
                     font-size: 0.86rem;
+                }
+
+                .uc-release-footer {
+                    font-size: 0.72rem;
                 }
 
             }
@@ -317,6 +447,40 @@ def _render_autoplay_video(video_bytes: bytes) -> None:
     )
 
 
+def _load_release_info() -> tuple[str, str, str]:
+    release_path = _project_root() / "release_info.json"
+    nickname = "No nickname"
+    version = "v0.0.0"
+    date = "-"
+
+    try:
+        raw = json.loads(release_path.read_text(encoding="utf-8"))
+    except Exception:
+        return nickname, version, date
+
+    if not isinstance(raw, dict):
+        return nickname, version, date
+
+    nickname = str(raw.get("nickname") or nickname)
+    version = str(raw.get("version") or version)
+    date = str(raw.get("date") or date)
+    return nickname, version, date
+
+
+def _render_release_footer() -> None:
+    nickname, version, date = _load_release_info()
+    st.markdown(
+        f"""
+        <div class="uc-release-footer">
+            <div class="uc-release-left">{escape(nickname)}</div>
+            <div class="uc-release-center">{escape(version)}</div>
+            <div class="uc-release-right">{escape(date)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_bottom_decoration() -> None:
     media_paths = _list_decoration_media()
     chosen: Path | None = random.choice(media_paths) if media_paths else None
@@ -332,10 +496,11 @@ def render_bottom_decoration() -> None:
 
     if chosen is None:
         st.image(CANGEROES_FALLBACK_HERO_URL, width="stretch")
-        return
-
-    suffix = chosen.suffix.lower()
-    if suffix in _VIDEO_EXTENSIONS:
-        _render_autoplay_video(chosen.read_bytes())
     else:
-        st.image(str(chosen), width="stretch")
+        suffix = chosen.suffix.lower()
+        if suffix in _VIDEO_EXTENSIONS:
+            _render_autoplay_video(chosen.read_bytes())
+        else:
+            st.image(str(chosen), width="stretch")
+
+    _render_release_footer()

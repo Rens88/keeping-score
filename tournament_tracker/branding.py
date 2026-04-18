@@ -170,8 +170,20 @@ def apply_cangeroes_theme() -> None:
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetric"] label,
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetric"] p,
             [data-testid="stAppViewContainer"] .main div[data-testid="stMetricValue"],
-            [data-testid="stAppViewContainer"] .main div[data-testid="stMetricDelta"] {
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetricDelta"],
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetricLabel"],
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetric"] span,
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetric"] div {
                 color: #111111 !important;
+                -webkit-text-fill-color: #111111 !important;
+                opacity: 1 !important;
+            }
+
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetricLabel"] > div,
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetricValue"] > div,
+            [data-testid="stAppViewContainer"] .main div[data-testid="stMetricDelta"] > div {
+                color: #111111 !important;
+                -webkit-text-fill-color: #111111 !important;
             }
 
             .uc-header-shell {

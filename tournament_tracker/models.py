@@ -121,6 +121,7 @@ class LeaderboardRow:
     motto: str
     photo_blob: Optional[bytes]
     photo_mime_type: Optional[str]
+    bonus_points: float
     total_points: float
     matches_played: int
     wins: int

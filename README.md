@@ -138,6 +138,8 @@ Note:
 ### 4.2 Find host laptop local IP
 - Windows: `ipconfig`
 - macOS/Linux: `ifconfig` or `ip addr`
+- In this setup, the expected LAN pattern has often been `192.168.2.x`
+- Both laptop and phone should usually share the same first three octets (for example `192.168.2.*`)
 
 ### 4.3 Connect from other devices
 Open in browser:
@@ -145,12 +147,21 @@ Open in browser:
 http://<HOST_LOCAL_IP>:8501
 ```
 
+Important:
+- Use the laptop's real LAN IP address, not `0.0.0.0`
+- Example: `http://192.168.2.6:8501`
+
 ### 4.4 LAN caveats / troubleshooting
 - Host laptop must stay on and connected to the same Wi-Fi
 - Local firewall may block inbound traffic on chosen port
 - Guest Wi-Fi sometimes isolates devices (client isolation)
 - Ensure app listens on `0.0.0.0` (not only `127.0.0.1`)
 - Port can be changed with `--server.port` or `STREAMLIT_SERVER_PORT`
+- Disable VPN on both laptop and phone while testing
+- Turn off mobile data on the phone so requests stay on Wi-Fi
+- If `localhost` works on the laptop but phone access fails, test with `python -m http.server 9999` to confirm whether the problem is app-specific
+- If access works only when Windows Firewall is off, inspect inbound `Block` rules for Python first; they can override allow rules
+- Prefer one clean Python allow rule scoped to the Private profile and local subnet instead of many overlapping rules
 
 ## 5. Deploy to Streamlit Community Cloud
 

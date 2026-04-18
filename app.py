@@ -20,16 +20,6 @@ render_page_intro(
 if current_user:
     st.success("You are logged in.")
     st.write("Use the sidebar to navigate between leaderboard, matches, and your profile.")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Open Leaderboard", width="stretch", key="home_open_leaderboard"):
-            st.switch_page("pages/03_Leaderboard.py")
-    with col2:
-        if st.button("Open Upcoming Matches", width="stretch", key="home_open_upcoming"):
-            st.switch_page("pages/04_Upcoming_Matches.py")
-    with col3:
-        if st.button("Open My Profile", width="stretch", key="home_open_profile"):
-            st.switch_page("pages/06_My_Profile.py")
 
     if current_user.role == "admin":
         st.divider()

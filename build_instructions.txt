@@ -139,3 +139,41 @@ Requested Changes (summarized)
 - Add consistent page intro cards so page titles and instructions stay visible and easy to scan.
 - Make the top quick-navigation buttons more mobile-friendly by splitting them into shorter rows instead of one cramped strip.
 - Improve clarity on login, invitation, and profile screens with clearer section framing and guidance copy.
+
+22. Header/mobile layout and compact leaderboard follow-up:
+- Fix the broken page-intro/header rendering where raw HTML appeared in the UI.
+- Improve the top header so the logo/banner layout looks intentional on mobile instead of stacking awkwardly.
+- Stop forcing light mode and make the shared theme adapt better to both light and dark environments.
+- Replace the wide leaderboard dataframe with a narrower responsive layout that keeps name + motto together and fits mobile screens without horizontal scrolling.
+- Strengthen README LAN troubleshooting with the previously requested subnet, host-IP, VPN/mobile-data, and firewall-rule guidance.
+- Produce a robust implementation plan for keeping users logged in across page refreshes, without shipping an unsafe quick fix first.
+
+23. Page-intro rendering and dark-mode label readability correction:
+- Fix the shared page-intro rendering path so hard-coded HTML blocks are rendered as HTML instead of appearing as literal markup/code text.
+- Route shared banner/intro/footer HTML through a direct HTML renderer when Streamlit supports it, with a safe markdown fallback.
+- Strengthen label, caption, and helper-text contrast in the shared theme so login/form text stays readable in dark mode instead of fading into the background.
+
+24. Release metadata update command:
+- User explicitly said "update", so `release_info.json` was updated again.
+- Patch version was incremented by 1 and date remained today's date.
+- Nickname was refreshed to summarize the latest readability and header fixes.
+
+25. Mobile form-label readability hardening:
+- Stop relying on Streamlit's built-in widget labels for the main forms where labels remained too dim on dark mobile screens.
+- Add shared high-contrast custom field-label styling and render visible labels above collapsed Streamlit widgets.
+- Apply the custom labels across login, invitation, profile, doubler selection, and admin form screens so text input/select labels stay readable in dark mode.
+
+26. Mobile UI regression cleanup from screenshot review:
+- Replace profile `st.metric` usage with custom stat tiles so values and labels stay readable on dark mobile screens.
+- Darken and rebalance dropdown/listbox, uploader-button, checkbox, and toggle styling so controls are readable without bright white panels or near-invisible labels.
+- Stop using a dropdown for the participant doubler picker when it hurts mobile readability; use a clearer single-option or radio-style flow instead.
+- Route leaderboard and compact past-match HTML through the shared direct HTML renderer so rows cannot fall back into literal markup/table-like rendering again.
+
+27. Home page shortcut cleanup:
+- Remove the bottom home-page participant shortcut buttons for opening leaderboard, upcoming matches, and profile.
+- Keep navigation available through the existing quick navigation and sidebar instead of duplicating those buttons on the home screen.
+
+28. Leaderboard compact-expand behavior:
+- Show only the rank, photo, name, motto, and total points in the default leaderboard row.
+- Hide secondary stats by default and reveal them only when the user clicks the player name area to expand that row.
+- Keep the leaderboard mobile-friendly while reducing default visual density.

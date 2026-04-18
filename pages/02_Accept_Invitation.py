@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration, render_page_intro
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import get_current_user, render_sidebar, set_logged_in_user
@@ -28,7 +28,8 @@ if isinstance(query_token, list):
 token_default = (query_token or "").strip()
 with st.container(border=True):
     st.caption("Paste the token from your invite link, or open the invite link directly on this page.")
-    token = st.text_input("Invitation token", value=token_default)
+    render_form_field_label("Invitation token")
+    token = st.text_input("Invitation token", value=token_default, label_visibility="collapsed")
     if token:
         validation = services.invitation_service.validate_invitation_token(token)
         if validation.valid:
@@ -39,15 +40,22 @@ with st.container(border=True):
 with st.container(border=True):
     with st.form("invitation_signup"):
         st.subheader("Profile and Login")
-        display_name = st.text_input("Name")
-        motto = st.text_input("Weekend motto")
-        username = st.text_input("Username (optional if email is provided)")
-        email = st.text_input("Email (optional if username is provided)")
-        password = st.text_input("Password", type="password")
+        render_form_field_label("Name")
+        display_name = st.text_input("Name", label_visibility="collapsed")
+        render_form_field_label("Weekend motto")
+        motto = st.text_input("Weekend motto", label_visibility="collapsed")
+        render_form_field_label("Username", "Optional if email is provided.")
+        username = st.text_input("Username (optional if email is provided)", label_visibility="collapsed")
+        render_form_field_label("Email", "Optional if username is provided.")
+        email = st.text_input("Email (optional if username is provided)", label_visibility="collapsed")
+        render_form_field_label("Password")
+        password = st.text_input("Password", type="password", label_visibility="collapsed")
+        render_form_field_label("Profile photo")
         photo = st.file_uploader(
             "Profile photo",
             type=["png", "jpg", "jpeg", "webp"],
             accept_multiple_files=False,
+            label_visibility="collapsed",
         )
         submitted = st.form_submit_button("Create account", width="stretch")
 

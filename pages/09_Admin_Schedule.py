@@ -4,7 +4,7 @@ from datetime import datetime, time
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration, render_page_intro
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.services.match_service import DEFAULT_GAME_TYPES
@@ -49,27 +49,52 @@ create_tab, edit_tab = st.tabs(["Create Match", "Edit Existing Match"])
 
 with create_tab:
     with st.form("create_match_form"):
-        game_type_choice = st.selectbox("Game type", DEFAULT_GAME_TYPES + ["Other"])
-        custom_game_type = st.text_input("Custom game type", value="")
-        status = st.selectbox("Status", ["upcoming", "live", "completed"], index=0)
-        scheduled_order = st.number_input("Scheduled order", min_value=1, value=1, step=1)
+        render_form_field_label("Game type")
+        game_type_choice = st.selectbox(
+            "Game type",
+            DEFAULT_GAME_TYPES + ["Other"],
+            label_visibility="collapsed",
+        )
+        render_form_field_label("Custom game type")
+        custom_game_type = st.text_input("Custom game type", value="", label_visibility="collapsed")
+        render_form_field_label("Status")
+        status = st.selectbox(
+            "Status",
+            ["upcoming", "live", "completed"],
+            index=0,
+            label_visibility="collapsed",
+        )
+        render_form_field_label("Scheduled order")
+        scheduled_order = st.number_input(
+            "Scheduled order",
+            min_value=1,
+            value=1,
+            step=1,
+            label_visibility="collapsed",
+        )
         has_schedule_time = st.checkbox("Set date/time", value=False)
         if has_schedule_time:
             col_date, col_time = st.columns(2)
             with col_date:
-                dt_date = st.date_input("Date")
+                render_form_field_label("Date")
+                dt_date = st.date_input("Date", label_visibility="collapsed")
             with col_time:
-                dt_time = st.time_input("Time", value=time(hour=12, minute=0))
+                render_form_field_label("Time")
+                dt_time = st.time_input("Time", value=time(hour=12, minute=0), label_visibility="collapsed")
             schedule_dt = datetime.combine(dt_date, dt_time)
         else:
             schedule_dt = None
 
-        side1_name = st.text_input("Side 1 name", value="")
-        side2_name = st.text_input("Side 2 name", value="")
+        render_form_field_label("Side 1 name")
+        side1_name = st.text_input("Side 1 name", value="", label_visibility="collapsed")
+        render_form_field_label("Side 2 name")
+        side2_name = st.text_input("Side 2 name", value="", label_visibility="collapsed")
 
         all_labels = list(participant_label_to_id.keys())
-        side1_labels = st.multiselect("Side 1 participants", options=all_labels)
-        side2_labels = st.multiselect("Side 2 participants", options=all_labels)
+        render_form_field_label("Side 1 participants")
+        side1_labels = st.multiselect("Side 1 participants", options=all_labels, label_visibility="collapsed")
+        render_form_field_label("Side 2 participants")
+        side2_labels = st.multiselect("Side 2 participants", options=all_labels, label_visibility="collapsed")
 
         create_submit = st.form_submit_button("Create match", width="stretch")
 
@@ -101,7 +126,12 @@ with edit_tab:
             f"#{card.match_id} - {card.game_type} ({card.status})": card.match_id
             for card in cards
         }
-        selected_label = st.selectbox("Select match", list(label_to_match_id.keys()))
+        render_form_field_label("Select match")
+        selected_label = st.selectbox(
+            "Select match",
+            list(label_to_match_id.keys()),
+            label_visibility="collapsed",
+        )
         selected_match_id = label_to_match_id[selected_label]
         selected_card = next(card for card in cards if card.match_id == selected_match_id)
 
@@ -117,6 +147,7 @@ with edit_tab:
         ]
 
         with st.form("edit_match_form"):
+            render_form_field_label("Game type")
             game_type_choice = st.selectbox(
                 "Game type",
                 DEFAULT_GAME_TYPES + ["Other"],
@@ -124,24 +155,31 @@ with edit_tab:
                        if selected_card.game_type in DEFAULT_GAME_TYPES
                        else len(DEFAULT_GAME_TYPES)),
                 key="edit_game_type_choice",
+                label_visibility="collapsed",
             )
+            render_form_field_label("Custom game type")
             custom_game_type = st.text_input(
                 "Custom game type",
                 value=selected_card.game_type if selected_card.game_type not in DEFAULT_GAME_TYPES else "",
                 key="edit_custom_game_type",
+                label_visibility="collapsed",
             )
+            render_form_field_label("Status")
             status = st.selectbox(
                 "Status",
                 ["upcoming", "live", "completed"],
                 index=["upcoming", "live", "completed"].index(selected_card.status),
                 key="edit_status",
+                label_visibility="collapsed",
             )
+            render_form_field_label("Scheduled order")
             scheduled_order = st.number_input(
                 "Scheduled order",
                 min_value=1,
                 value=int(selected_card.scheduled_order or 1),
                 step=1,
                 key="edit_order",
+                label_visibility="collapsed",
             )
             has_schedule_time = st.checkbox(
                 "Set date/time",
@@ -151,39 +189,49 @@ with edit_tab:
             if has_schedule_time:
                 col_date, col_time = st.columns(2)
                 with col_date:
-                    dt_date = st.date_input("Date", value=default_date, key="edit_date")
+                    render_form_field_label("Date")
+                    dt_date = st.date_input("Date", value=default_date, key="edit_date", label_visibility="collapsed")
                 with col_time:
-                    dt_time = st.time_input("Time", value=default_time, key="edit_time")
+                    render_form_field_label("Time")
+                    dt_time = st.time_input("Time", value=default_time, key="edit_time", label_visibility="collapsed")
                 schedule_dt = datetime.combine(dt_date, dt_time)
             else:
                 schedule_dt = None
 
+            render_form_field_label("Side 1 name")
             side1_name = st.text_input(
                 "Side 1 name",
                 value=str(selected_card.sides[1]["side_name"] or ""),
                 key="edit_side1_name",
+                label_visibility="collapsed",
             )
+            render_form_field_label("Side 2 name")
             side2_name = st.text_input(
                 "Side 2 name",
                 value=str(selected_card.sides[2]["side_name"] or ""),
                 key="edit_side2_name",
+                label_visibility="collapsed",
             )
 
             all_labels = list(participant_label_to_id.keys())
             side1_defaults = [participant_id_to_label[i] for i in side1_current_ids if i in participant_id_to_label]
             side2_defaults = [participant_id_to_label[i] for i in side2_current_ids if i in participant_id_to_label]
 
+            render_form_field_label("Side 1 participants")
             side1_labels = st.multiselect(
                 "Side 1 participants",
                 options=all_labels,
                 default=side1_defaults,
                 key="edit_side1_players",
+                label_visibility="collapsed",
             )
+            render_form_field_label("Side 2 participants")
             side2_labels = st.multiselect(
                 "Side 2 participants",
                 options=all_labels,
                 default=side2_defaults,
                 key="edit_side2_players",
+                label_visibility="collapsed",
             )
 
             update_submit = st.form_submit_button("Save changes", width="stretch")

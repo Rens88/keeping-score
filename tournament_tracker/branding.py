@@ -5,6 +5,7 @@ from html import escape
 import json
 from pathlib import Path
 import random
+from textwrap import dedent
 
 import streamlit as st
 
@@ -24,7 +25,8 @@ _VIDEO_EXTENSIONS = {".mp4"}
 
 def apply_cangeroes_theme() -> None:
     st.markdown(
-        """
+        dedent(
+            """
         <style>
             :root {
                 --uc-orange: #ea580c;
@@ -43,8 +45,24 @@ def apply_cangeroes_theme() -> None:
                 --uc-text: #171717;
                 --uc-text-soft: #3f3227;
                 --uc-muted: #625447;
-                --uc-shadow: 0 16px 32px rgba(23, 23, 23, 0.08);
-                --uc-shadow-soft: 0 8px 22px rgba(23, 23, 23, 0.05);
+                --uc-disabled-bg: #eee4da;
+                --uc-disabled-text: #867261;
+                --uc-success: #15803d;
+                --uc-success-bg: #ecfdf3;
+                --uc-info: #2563eb;
+                --uc-info-bg: #eff6ff;
+                --uc-danger: #dc2626;
+                --uc-danger-bg: #fef2f2;
+                --uc-neutral: #94a3b8;
+                --uc-neutral-bg: #f8fafc;
+                --uc-table-bg: #ffffff;
+                --uc-table-header-bg: #f1f5f9;
+                --uc-table-header-focus: #e2e8f0;
+                --uc-table-text: #171717;
+                --uc-table-text-muted: #475569;
+                --uc-table-group-header: #171717;
+                --uc-shadow: 0 12px 28px rgba(23, 23, 23, 0.08);
+                --uc-shadow-soft: 0 6px 18px rgba(23, 23, 23, 0.05);
 
                 /* Backward-compatible aliases for existing class rules. */
                 --uc-red: var(--uc-orange);
@@ -60,6 +78,44 @@ def apply_cangeroes_theme() -> None:
                 color-scheme: light;
             }
 
+            @media (prefers-color-scheme: dark) {
+                :root,
+                html,
+                body,
+                [data-testid="stAppViewContainer"] {
+                    color-scheme: dark;
+                }
+
+                :root {
+                    --uc-surface: #15110f;
+                    --uc-surface-strong: #1d1815;
+                    --uc-surface-muted: #27201b;
+                    --uc-border: #5d4737;
+                    --uc-border-strong: #a47653;
+                    --uc-text: #f8f4ef;
+                    --uc-text-soft: #f2e6da;
+                    --uc-muted: #e0cdbb;
+                    --uc-disabled-bg: #332a24;
+                    --uc-disabled-text: #bca48f;
+                    --uc-success: #4ade80;
+                    --uc-success-bg: #13291b;
+                    --uc-info: #60a5fa;
+                    --uc-info-bg: #11243b;
+                    --uc-danger: #f87171;
+                    --uc-danger-bg: #32171a;
+                    --uc-neutral: #cbd5e1;
+                    --uc-neutral-bg: #1d2733;
+                    --uc-table-bg: #1d1815;
+                    --uc-table-header-bg: #2b241f;
+                    --uc-table-header-focus: #382e27;
+                    --uc-table-text: #f8f4ef;
+                    --uc-table-text-muted: #d7c3b0;
+                    --uc-table-group-header: #fff7ef;
+                    --uc-shadow: 0 14px 32px rgba(0, 0, 0, 0.34);
+                    --uc-shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.24);
+                }
+            }
+
             .stApp {
                 background:
                     radial-gradient(circle at top left, rgba(251, 146, 60, 0.18), transparent 28%),
@@ -68,14 +124,30 @@ def apply_cangeroes_theme() -> None:
                 color: var(--uc-text) !important;
             }
 
+            @media (prefers-color-scheme: dark) {
+                .stApp {
+                    background:
+                        radial-gradient(circle at top left, rgba(251, 146, 60, 0.14), transparent 24%),
+                        radial-gradient(circle at top right, rgba(234, 88, 12, 0.12), transparent 22%),
+                        linear-gradient(180deg, #0f0c0a 0%, #15110f 48%, #1a1511 100%);
+                }
+            }
+
             [data-testid="stAppViewContainer"] {
                 background: transparent;
             }
 
             [data-testid="stHeader"] {
-                background: rgba(255, 249, 242, 0.9) !important;
+                background: rgba(255, 249, 242, 0.92) !important;
                 backdrop-filter: blur(12px);
                 border-bottom: 1px solid rgba(139, 115, 85, 0.18);
+            }
+
+            @media (prefers-color-scheme: dark) {
+                [data-testid="stHeader"] {
+                    background: rgba(17, 13, 11, 0.94) !important;
+                    border-bottom-color: rgba(164, 118, 83, 0.22);
+                }
             }
 
             [data-testid="stToolbar"],
@@ -86,7 +158,7 @@ def apply_cangeroes_theme() -> None:
             /* Streamlit keeps a fixed top header. Add enough top offset so
                custom banners never render underneath it. */
             [data-testid="stAppViewContainer"] .main .block-container {
-                padding-top: 4.6rem;
+                padding-top: 4.2rem;
                 padding-bottom: 1.9rem;
                 padding-left: 1.1rem;
                 padding-right: 1.1rem;
@@ -95,7 +167,7 @@ def apply_cangeroes_theme() -> None:
 
             @media (max-width: 900px) {
                 [data-testid="stAppViewContainer"] .main .block-container {
-                    padding-top: 5.1rem;
+                    padding-top: 4.65rem;
                     padding-left: 0.85rem;
                     padding-right: 0.85rem;
                 }
@@ -140,13 +212,9 @@ def apply_cangeroes_theme() -> None:
             }
 
             /* Main-area text contrast lock. */
-            [data-testid="stAppViewContainer"] .main label,
             [data-testid="stAppViewContainer"] .main p,
             [data-testid="stAppViewContainer"] .main li,
             [data-testid="stAppViewContainer"] .main small,
-            [data-testid="stAppViewContainer"] .main [data-testid="InputInstructions"],
-            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"],
-            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"] *,
             [data-testid="stAppViewContainer"] .main [data-testid="stMarkdownContainer"] p,
             [data-testid="stAppViewContainer"] .main [data-testid="stMarkdownContainer"] li,
             [data-testid="stAppViewContainer"] .main [data-testid="stMarkdownContainer"] strong,
@@ -156,14 +224,32 @@ def apply_cangeroes_theme() -> None:
                 opacity: 1 !important;
             }
 
+            [data-testid="stAppViewContainer"] .main label,
+            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"],
+            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"] *,
+            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"] label,
+            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"] p,
+            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"] span {
+                color: var(--uc-text) !important;
+                -webkit-text-fill-color: var(--uc-text) !important;
+                opacity: 1 !important;
+                font-weight: 700 !important;
+                line-height: 1.35 !important;
+            }
+
+            [data-testid="stAppViewContainer"] .main [data-testid="stWidgetLabel"] p {
+                font-size: 1rem !important;
+            }
+
             [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"],
             [data-testid="stAppViewContainer"] .main [data-testid="stCaptionContainer"] *,
             [data-testid="stAppViewContainer"] .main [data-testid="InputInstructions"],
             [data-testid="stAppViewContainer"] .main [data-testid="InputInstructions"] * {
-                color: var(--uc-muted) !important;
-                -webkit-text-fill-color: var(--uc-muted) !important;
+                color: var(--uc-text-soft) !important;
+                -webkit-text-fill-color: var(--uc-text-soft) !important;
                 opacity: 1 !important;
-                font-weight: 500 !important;
+                font-weight: 600 !important;
+                line-height: 1.5 !important;
             }
 
             [data-testid="stAppViewContainer"] .main .stMarkdown code,
@@ -174,7 +260,7 @@ def apply_cangeroes_theme() -> None:
 
             form,
             div[data-testid="stForm"] {
-                background: rgba(255, 255, 255, 0.95);
+                background: var(--uc-surface-strong);
                 border: 1px solid rgba(139, 115, 85, 0.18);
                 border-left: 6px solid var(--uc-orange);
                 border-radius: 18px;
@@ -194,7 +280,9 @@ def apply_cangeroes_theme() -> None:
             [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] > div,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] > div,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] > div,
-            [data-testid="stAppViewContainer"] .main div[data-baseweb="base-input"] > div {
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="base-input"] > div,
+            [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+            [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
                 background-color: var(--uc-surface-strong) !important;
                 color: var(--uc-text) !important;
                 border: 1px solid var(--uc-border) !important;
@@ -206,7 +294,9 @@ def apply_cangeroes_theme() -> None:
             [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] > div:focus-within,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] > div:focus-within,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] > div:focus-within,
-            [data-testid="stAppViewContainer"] .main div[data-baseweb="base-input"] > div:focus-within {
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="base-input"] > div:focus-within,
+            [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within,
+            [data-testid="stMultiSelect"] [data-baseweb="select"] > div:focus-within {
                 border-color: var(--uc-orange) !important;
                 box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18) !important;
             }
@@ -214,8 +304,8 @@ def apply_cangeroes_theme() -> None:
             [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] > div:has(input:disabled),
             [data-testid="stAppViewContainer"] .main div[data-baseweb="textarea"] > div:has(textarea:disabled),
             [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] > div[aria-disabled="true"] {
-                background: #f3ede6 !important;
-                border-color: #cdbba8 !important;
+                background: var(--uc-disabled-bg) !important;
+                border-color: var(--uc-border) !important;
             }
 
             [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] input,
@@ -225,7 +315,9 @@ def apply_cangeroes_theme() -> None:
             [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] *,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] button,
             [data-testid="stAppViewContainer"] .main div[data-baseweb="input"] svg,
-            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] svg {
+            [data-testid="stAppViewContainer"] .main div[data-baseweb="select"] svg,
+            [data-testid="stSelectbox"] [data-baseweb="select"] *,
+            [data-testid="stMultiSelect"] [data-baseweb="select"] * {
                 color: var(--uc-text) !important;
                 -webkit-text-fill-color: var(--uc-text) !important;
                 opacity: 1 !important;
@@ -249,7 +341,7 @@ def apply_cangeroes_theme() -> None:
             /* Dropdown menu portal colors. */
             div[role="listbox"],
             ul[role="listbox"] {
-                background: var(--uc-white) !important;
+                background: var(--uc-surface-strong) !important;
                 border: 1px solid var(--uc-border) !important;
                 box-shadow: var(--uc-shadow-soft);
             }
@@ -257,13 +349,18 @@ def apply_cangeroes_theme() -> None:
             div[role="option"],
             li[role="option"] {
                 color: var(--uc-text) !important;
-                background: var(--uc-white) !important;
+                background: var(--uc-surface-strong) !important;
             }
 
             div[role="option"][aria-selected="true"],
             li[role="option"][aria-selected="true"] {
                 color: var(--uc-text) !important;
-                background: var(--uc-orange-soft) !important;
+                background: var(--uc-surface-muted) !important;
+            }
+
+            div[role="option"]:hover,
+            li[role="option"]:hover {
+                background: rgba(234, 88, 12, 0.14) !important;
             }
 
             /* Checkbox/radio controls with explicit readable contrast. */
@@ -279,8 +376,18 @@ def apply_cangeroes_theme() -> None:
                 fill: var(--uc-orange-dark) !important;
             }
 
+            [data-testid="stCheckbox"] [data-testid="stWidgetLabel"],
+            [data-testid="stCheckbox"] [data-testid="stWidgetLabel"] *,
+            [data-testid="stToggle"] [data-testid="stWidgetLabel"],
+            [data-testid="stToggle"] [data-testid="stWidgetLabel"] * {
+                color: var(--uc-text-soft) !important;
+                -webkit-text-fill-color: var(--uc-text-soft) !important;
+                opacity: 1 !important;
+                font-weight: 700 !important;
+            }
+
             [data-testid="stAppViewContainer"] .main [data-testid="stToggle"] {
-                background: rgba(255, 255, 255, 0.88);
+                background: var(--uc-surface-strong);
                 border: 1px solid rgba(139, 115, 85, 0.16);
                 border-radius: 14px;
                 padding: 0.25rem 0.8rem;
@@ -336,7 +443,7 @@ def apply_cangeroes_theme() -> None:
             .stButton > button,
             .stDownloadButton > button,
             .stFormSubmitButton > button {
-                background: var(--uc-white) !important;
+                background: var(--uc-surface-strong) !important;
                 color: var(--uc-text) !important;
                 border: 1px solid var(--uc-border-strong) !important;
                 border-radius: 12px;
@@ -361,7 +468,7 @@ def apply_cangeroes_theme() -> None:
             .stButton > button:focus-visible,
             .stDownloadButton > button:focus-visible,
             .stFormSubmitButton > button:focus-visible {
-                background: var(--uc-white) !important;
+                background: var(--uc-surface-strong) !important;
                 color: var(--uc-text) !important;
                 border-color: var(--uc-orange) !important;
                 box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18) !important;
@@ -392,9 +499,9 @@ def apply_cangeroes_theme() -> None:
             .stButton > button:disabled,
             .stDownloadButton > button:disabled,
             .stFormSubmitButton > button:disabled {
-                background: #f3f4f6 !important;
-                color: #6b7280 !important;
-                border-color: #d1d5db !important;
+                background: var(--uc-disabled-bg) !important;
+                color: var(--uc-disabled-text) !important;
+                border-color: var(--uc-border) !important;
             }
 
             .stButton > button span,
@@ -440,7 +547,7 @@ def apply_cangeroes_theme() -> None:
             }
 
             div[data-testid="stMetric"] {
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 246, 238, 0.96) 100%);
+                background: linear-gradient(180deg, var(--uc-surface-strong) 0%, var(--uc-surface-muted) 100%);
                 border: 1px solid rgba(139, 115, 85, 0.16);
                 border-left: 6px solid var(--uc-orange);
                 border-radius: 16px;
@@ -479,7 +586,7 @@ def apply_cangeroes_theme() -> None:
 
             /* Status/information messages: readable regardless of base theme. */
             [data-testid="stAlert"] {
-                background: linear-gradient(180deg, rgba(255, 249, 242, 0.98) 0%, rgba(255, 239, 220, 0.98) 100%) !important;
+                background: linear-gradient(180deg, var(--uc-surface-strong) 0%, var(--uc-surface-muted) 100%) !important;
                 border: 1px solid #fdba74 !important;
                 border-left: 6px solid var(--uc-orange) !important;
                 border-radius: 14px !important;
@@ -493,14 +600,14 @@ def apply_cangeroes_theme() -> None:
             }
 
             [data-testid="stFileUploader"] {
-                background: rgba(255, 255, 255, 0.9);
+                background: var(--uc-surface-strong);
                 border: 1px solid rgba(139, 115, 85, 0.16);
                 padding: 0.5rem;
                 box-shadow: var(--uc-shadow-soft);
             }
 
             [data-testid="stFileUploaderDropzone"] {
-                background: linear-gradient(180deg, #fffdfa 0%, #fff5ea 100%) !important;
+                background: linear-gradient(180deg, var(--uc-surface-strong) 0%, var(--uc-surface-muted) 100%) !important;
                 border: 2px dashed #f59e0b !important;
                 border-radius: 16px !important;
             }
@@ -510,8 +617,26 @@ def apply_cangeroes_theme() -> None:
                 -webkit-text-fill-color: var(--uc-text) !important;
             }
 
+            [data-testid="stFileUploaderDropzone"] button,
+            [data-testid="stFileUploaderDropzone"] button:hover,
+            [data-testid="stFileUploaderDropzone"] button:focus,
+            [data-testid="stFileUploaderDropzone"] button:focus-visible {
+                background: var(--uc-surface-muted) !important;
+                color: var(--uc-text) !important;
+                border: 1px solid var(--uc-border-strong) !important;
+                box-shadow: none !important;
+            }
+
+            [data-testid="stFileUploaderDropzoneInstructions"],
+            [data-testid="stFileUploaderDropzoneInstructions"] * {
+                color: var(--uc-text-soft) !important;
+                -webkit-text-fill-color: var(--uc-text-soft) !important;
+                opacity: 1 !important;
+                font-weight: 600 !important;
+            }
+
             [data-testid="stDataFrame"] {
-                background: var(--uc-white);
+                background: var(--uc-table-bg);
                 border: 1px solid rgba(139, 115, 85, 0.18);
                 border-radius: 16px;
                 overflow: hidden;
@@ -519,36 +644,61 @@ def apply_cangeroes_theme() -> None:
                 --gdg-font-family: "Source Sans Pro", sans-serif;
                 --gdg-editor-font-size: 0.96rem;
                 --gdg-rounding-radius: 8px;
-                --gdg-bg-cell: var(--uc-white);
-                --gdg-bg-header: #1f2937;
-                --gdg-bg-header-has-focus: #111827;
-                --gdg-border-color: #d3c4b5;
-                --gdg-text-dark: #111111;
-                --gdg-text-medium: #374151;
-                --gdg-text-light: #6b7280;
-                --gdg-text-group-header: #f9fafb;
+                --gdg-bg-cell: var(--uc-table-bg);
+                --gdg-bg-header: var(--uc-table-header-bg);
+                --gdg-bg-header-has-focus: var(--uc-table-header-focus);
+                --gdg-border-color: var(--uc-border);
+                --gdg-text-dark: var(--uc-table-text);
+                --gdg-text-medium: var(--uc-table-text-muted);
+                --gdg-text-light: var(--uc-muted);
+                --gdg-text-group-header: var(--uc-table-group-header);
                 --gdg-accent-color: var(--uc-orange);
                 --gdg-accent-fg: var(--uc-white);
-                --gdg-accent-light: #ffedd5;
-                --gdg-bg-bubble: #fff3e8;
+                --gdg-accent-light: var(--uc-orange-soft);
+                --gdg-bg-bubble: var(--uc-surface-muted);
                 --gdg-link-color: var(--uc-orange-dark);
             }
 
             [data-testid="stCode"] pre,
             code {
                 color: var(--uc-text) !important;
-                background: #fff7ed !important;
+                background: var(--uc-surface-muted) !important;
+            }
+
+            .uc-hero {
+                display: grid;
+                grid-template-columns: 6rem minmax(0, 1fr);
+                gap: 0.8rem;
+                align-items: center;
+                margin-bottom: 0.95rem;
+            }
+
+            .uc-hero-logo-wrap {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--uc-surface-strong);
+                border: 1px solid rgba(139, 115, 85, 0.18);
+                border-radius: 18px;
+                padding: 0.45rem;
+                box-shadow: var(--uc-shadow-soft);
+            }
+
+            .uc-hero-logo {
+                width: 100%;
+                max-width: 5rem;
+                height: auto;
+                display: block;
             }
 
             .uc-header-shell {
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 244, 233, 0.98) 100%);
-                border: 1px solid rgba(17, 17, 17, 0.08);
+                background: linear-gradient(180deg, var(--uc-surface-strong) 0%, var(--uc-surface-muted) 100%);
+                border: 1px solid rgba(139, 115, 85, 0.18);
                 border-left: 8px solid var(--uc-orange);
                 border-radius: 18px;
-                box-shadow: var(--uc-shadow);
+                box-shadow: var(--uc-shadow-soft);
                 padding: 0.85rem 0.95rem;
-                margin-top: 0.2rem;
-                margin-bottom: 1rem;
+                margin: 0;
             }
 
             .uc-kicker {
@@ -577,11 +727,11 @@ def apply_cangeroes_theme() -> None:
             }
 
             .uc-page-intro {
-                background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 244, 233, 0.98) 100%);
+                background: linear-gradient(180deg, var(--uc-surface-strong) 0%, var(--uc-surface-muted) 100%);
                 border: 1px solid rgba(139, 115, 85, 0.18);
                 border-left: 8px solid var(--uc-orange);
                 border-radius: 18px;
-                box-shadow: var(--uc-shadow);
+                box-shadow: var(--uc-shadow-soft);
                 padding: 0.95rem 1rem;
                 margin: 0 0 1rem 0;
             }
@@ -611,6 +761,26 @@ def apply_cangeroes_theme() -> None:
                 font-size: 1rem;
                 font-weight: 600;
                 max-width: 58rem;
+            }
+
+            .uc-field-label-block {
+                margin: 0.15rem 0 0.3rem 0;
+            }
+
+            .uc-field-label {
+                color: var(--uc-text) !important;
+                font-size: 1rem;
+                font-weight: 800;
+                line-height: 1.35;
+                letter-spacing: 0.01em;
+            }
+
+            .uc-field-helper {
+                margin-top: 0.14rem;
+                color: var(--uc-text-soft) !important;
+                font-size: 0.92rem;
+                font-weight: 600;
+                line-height: 1.45;
             }
 
             .uc-decoration-wrap {
@@ -665,7 +835,7 @@ def apply_cangeroes_theme() -> None:
                 }
 
                 .uc-title {
-                    font-size: 1.2rem;
+                    font-size: 1.08rem;
                 }
 
                 .uc-subtitle {
@@ -687,16 +857,28 @@ def apply_cangeroes_theme() -> None:
             }
 
             @media (max-width: 560px) {
+                .uc-hero {
+                    grid-template-columns: 4.6rem minmax(0, 1fr);
+                    gap: 0.65rem;
+                    align-items: stretch;
+                }
+
+                .uc-hero-logo {
+                    max-width: 3.9rem;
+                }
+
                 form,
                 div[data-testid="stForm"],
                 .uc-page-intro,
-                .uc-header-shell {
+                .uc-header-shell,
+                .uc-hero-logo-wrap {
                     padding-left: 0.85rem;
                     padding-right: 0.85rem;
                 }
             }
         </style>
-        """,
+        """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -727,37 +909,57 @@ def _list_decoration_media() -> list[Path]:
     return files
 
 
+def render_html_block(markup: str) -> None:
+    cleaned = dedent(markup).strip()
+    html_renderer = getattr(st, "html", None)
+    if callable(html_renderer):
+        html_renderer(cleaned)
+        return
+    st.markdown(cleaned, unsafe_allow_html=True)
+
+
 def render_cangeroes_header() -> None:
     apply_cangeroes_theme()
 
-    left, right = st.columns([1, 3])
-    with left:
-        st.image(CANGEROES_LOGO_URL, width=170)
-    with right:
-        st.markdown(
-            """
-            <div class="uc-header-shell">
-                <div class="uc-kicker">Teamweekend 2026 / 2027</div>
-                <div class="uc-title">Net geen Kampioen</div>
-                <div class="uc-subtitle">Maar we hebben wel de #1 verslagen</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    render_html_block(
+        f"""
+<div class="uc-hero">
+    <div class="uc-hero-logo-wrap">
+        <img class="uc-hero-logo" src="{escape(CANGEROES_LOGO_URL)}" alt="Utrecht Cangeroes logo">
+    </div>
+    <div class="uc-header-shell">
+        <div class="uc-kicker">Teamweekend 2026 / 2027</div>
+        <div class="uc-title">Net geen Kampioen</div>
+        <div class="uc-subtitle">Maar we hebben wel de #1 verslagen</div>
+    </div>
+</div>
+        """
+    )
 
 
 def render_page_intro(title: str, description: str | None = None, eyebrow: str | None = None) -> None:
     eyebrow_html = f'<div class="uc-page-eyebrow">{escape(eyebrow)}</div>' if eyebrow else ""
     description_html = f'<div class="uc-page-copy">{escape(description)}</div>' if description else ""
-    st.markdown(
+    render_html_block(
         f"""
-        <section class="uc-page-intro">
-            {eyebrow_html}
-            <h1 class="uc-page-heading">{escape(title)}</h1>
-            {description_html}
-        </section>
+<div class="uc-page-intro">
+    {eyebrow_html}
+    <div class="uc-page-heading">{escape(title)}</div>
+    {description_html}
+</div>
         """,
-        unsafe_allow_html=True,
+    )
+
+
+def render_form_field_label(label: str, helper: str | None = None) -> None:
+    helper_html = f'<div class="uc-field-helper">{escape(helper)}</div>' if helper else ""
+    render_html_block(
+        f"""
+<div class="uc-field-label-block">
+    <div class="uc-field-label">{escape(label)}</div>
+    {helper_html}
+</div>
+        """,
     )
 
 
@@ -796,15 +998,14 @@ def _load_release_info() -> tuple[str, str, str]:
 
 def _render_release_footer() -> None:
     nickname, version, date = _load_release_info()
-    st.markdown(
+    render_html_block(
         f"""
-        <div class="uc-release-footer">
-            <div class="uc-release-left">{escape(nickname)}</div>
-            <div class="uc-release-center">{escape(version)}</div>
-            <div class="uc-release-right">{escape(date)}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+<div class="uc-release-footer">
+    <div class="uc-release-left">{escape(nickname)}</div>
+    <div class="uc-release-center">{escape(version)}</div>
+    <div class="uc-release-right">{escape(date)}</div>
+</div>
+        """
     )
 
 
@@ -812,13 +1013,12 @@ def render_bottom_decoration() -> None:
     media_paths = _list_decoration_media()
     chosen: Path | None = random.choice(media_paths) if media_paths else None
 
-    st.markdown(
+    render_html_block(
         """
-        <div class="uc-decoration-wrap">
-            <div class="uc-decoration-media"></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+<div class="uc-decoration-wrap">
+    <div class="uc-decoration-media"></div>
+</div>
+        """
     )
 
     if chosen is None:

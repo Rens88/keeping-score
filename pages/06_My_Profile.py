@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration, render_page_intro
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_login
+from tournament_tracker.ui import render_stat_tiles
 
 st.set_page_config(page_title="My Profile", page_icon="👤", layout="wide")
 
@@ -41,12 +42,15 @@ with st.container(border=True):
 if user.role == "participant":
     stats = services.ranking_service.get_participant_stats(user.id)
     if stats:
-        stat_cols = st.columns(5)
-        stat_cols[0].metric("Points", f"{stats.total_points:.2f}")
-        stat_cols[1].metric("Played", stats.matches_played)
-        stat_cols[2].metric("Wins", stats.wins)
-        stat_cols[3].metric("Draws", stats.draws)
-        stat_cols[4].metric("Losses", stats.losses)
+        render_stat_tiles(
+            [
+                ("Points", f"{stats.total_points:.2f}"),
+                ("Played", str(stats.matches_played)),
+                ("Wins", str(stats.wins)),
+                ("Draws", str(stats.draws)),
+                ("Losses", str(stats.losses)),
+            ]
+        )
     else:
         st.info("No match stats yet.")
 
@@ -56,9 +60,16 @@ if user.role == "participant":
 
     with st.form("edit_profile"):
         st.caption("Name changes are managed by admins.")
-        st.text_input("Name", value=profile.display_name or "", disabled=True)
-        motto = st.text_input("Motto", value=profile.motto or "")
-        new_photo = st.file_uploader("Upload new photo", type=["png", "jpg", "jpeg", "webp"])
+        render_form_field_label("Name")
+        st.text_input("Name", value=profile.display_name or "", disabled=True, label_visibility="collapsed")
+        render_form_field_label("Motto")
+        motto = st.text_input("Motto", value=profile.motto or "", label_visibility="collapsed")
+        render_form_field_label("Upload new photo")
+        new_photo = st.file_uploader(
+            "Upload new photo",
+            type=["png", "jpg", "jpeg", "webp"],
+            label_visibility="collapsed",
+        )
         keep_existing = st.checkbox("Keep existing photo if no new upload", value=True)
         save = st.form_submit_button("Save profile", width="stretch")
 
@@ -84,9 +95,12 @@ st.divider()
 st.subheader("Change password")
 st.caption("Use a fresh password that you do not reuse elsewhere.")
 with st.form("change_password_form"):
-    current_password = st.text_input("Current password", type="password")
-    new_password = st.text_input("New password", type="password")
-    confirm_password = st.text_input("Confirm new password", type="password")
+    render_form_field_label("Current password")
+    current_password = st.text_input("Current password", type="password", label_visibility="collapsed")
+    render_form_field_label("New password")
+    new_password = st.text_input("New password", type="password", label_visibility="collapsed")
+    render_form_field_label("Confirm new password")
+    confirm_password = st.text_input("Confirm new password", type="password", label_visibility="collapsed")
     password_save = st.form_submit_button("Update password", width="stretch")
 
 if password_save:

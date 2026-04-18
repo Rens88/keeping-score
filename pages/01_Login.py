@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration, render_page_intro
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import get_current_user, render_sidebar, set_logged_in_user
 
@@ -20,12 +20,13 @@ if current_user:
         st.switch_page("pages/03_Leaderboard.py")
     st.stop()
 
-with st.container(border=True):
-    st.caption("Participant and admin accounts both sign in here.")
-    with st.form("login_form", clear_on_submit=False):
-        login_identifier = st.text_input("Username or email")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Log in", width="stretch")
+st.caption("Participant and admin accounts both sign in here.")
+with st.form("login_form", clear_on_submit=False):
+    render_form_field_label("Username or email")
+    login_identifier = st.text_input("Username or email", label_visibility="collapsed")
+    render_form_field_label("Password")
+    password = st.text_input("Password", type="password", label_visibility="collapsed")
+    submitted = st.form_submit_button("Log in", width="stretch")
 
 if submitted:
     user = services.auth_service.authenticate(login_identifier, password)

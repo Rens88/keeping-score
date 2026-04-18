@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import render_sidebar, require_login
 from tournament_tracker.ui import render_past_matches_compact
@@ -13,11 +13,12 @@ services = get_services()
 user = require_login(services)
 render_sidebar(user)
 
-st.title("Past Matches")
+render_page_intro("Past Matches", "Review completed matches and the points they produced.")
 
 show_only_mine = False
 if user.role == "participant":
-    show_only_mine = st.toggle("Show only matches I played", value=True)
+    render_form_field_label("Show only matches I played")
+    show_only_mine = st.toggle("Show only matches I played", value=True, label_visibility="collapsed")
 
 cards = services.match_service.list_matches_for_view(
     statuses=["completed"],

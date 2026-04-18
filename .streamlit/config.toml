@@ -5,3 +5,6 @@ headless = true
 
 [client]
 showSidebarNavigation = false
+
+[theme]
+primaryColor = "#ea580c"

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import render_sidebar, require_login
@@ -14,7 +14,7 @@ services = get_services()
 user = require_login(services)
 render_sidebar(user)
 
-st.title("Upcoming Matches")
+render_page_intro("Upcoming Matches", "See live fixtures, upcoming matches, and the current state of your doubler.")
 
 if user.role == "participant":
     st.subheader("My Doubler")
@@ -37,7 +37,17 @@ if user.role == "participant":
                 f"#{m.match_id} - {m.game_type} (order {m.scheduled_order or '-'})": m.match_id
                 for m in eligible
             }
-            selected_label = st.selectbox("Choose a match to activate your doubler", list(options.keys()))
+            render_form_field_label("Choose a match to activate your doubler")
+            option_labels = list(options.keys())
+            if len(option_labels) == 1:
+                selected_label = option_labels[0]
+                st.info(f"Doubler will be applied to {selected_label}.")
+            else:
+                selected_label = st.radio(
+                    "Choose a match to activate your doubler",
+                    option_labels,
+                    label_visibility="collapsed",
+                )
             if st.button("Activate doubler", width="stretch"):
                 try:
                     services.match_service.activate_doubler(

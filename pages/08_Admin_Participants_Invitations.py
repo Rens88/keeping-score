@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
@@ -13,18 +13,25 @@ services = get_services()
 admin_user = require_admin(services)
 render_sidebar(admin_user)
 
-st.title("Participants and Invitations")
+render_page_intro(
+    "Participants and Invitations",
+    "Invite players, manage participant details, and troubleshoot doubler state.",
+    eyebrow="Admin",
+)
 
 st.subheader("Generate invitation")
 with st.form("create_invitation_form"):
+    render_form_field_label("Expires in (hours)")
     expiry_hours = st.number_input(
         "Expires in (hours)",
         min_value=1,
         max_value=336,
         value=services.config.default_invite_expiry_hours,
         step=1,
+        label_visibility="collapsed",
     )
-    note = st.text_input("Note (optional)")
+    render_form_field_label("Note", "Optional.")
+    note = st.text_input("Note (optional)", label_visibility="collapsed")
     create_invite = st.form_submit_button("Create invitation", width="stretch")
 
 if create_invite:
@@ -101,17 +108,21 @@ else:
 
     st.subheader("Reset participant password")
     if participant_options:
+        render_form_field_label("Participant for password reset")
         pw_target_label = st.selectbox(
             "Participant for password reset",
             list(participant_options.keys()),
             key="participant_pw_reset_select",
+            label_visibility="collapsed",
         )
         pw_target_user_id = participant_options[pw_target_label]
+        render_form_field_label("New password", "Minimum 4 characters.")
         new_password = st.text_input(
             "New password",
             type="password",
             key="participant_pw_reset_new",
             help="Minimum 4 characters.",
+            label_visibility="collapsed",
         )
         if st.button("Reset password", width="stretch", key="participant_pw_reset_btn"):
             try:
@@ -127,10 +138,12 @@ else:
     st.divider()
     st.subheader("Edit participant name")
     if participant_options:
+        render_form_field_label("Participant to rename")
         selected_participant_label = st.selectbox(
             "Participant to rename",
             list(participant_options.keys()),
             key="participant_rename_select",
+            label_visibility="collapsed",
         )
         selected_participant_id = participant_options[selected_participant_label]
         selected_participant = next(
@@ -146,7 +159,13 @@ else:
             if selected_participant and selected_participant.email
             else ""
         )
-        new_name = st.text_input("New display name", value=current_name, key="participant_rename_input")
+        render_form_field_label("New display name")
+        new_name = st.text_input(
+            "New display name",
+            value=current_name,
+            key="participant_rename_input",
+            label_visibility="collapsed",
+        )
         if st.button("Save participant name", width="stretch", key="participant_rename_save"):
             try:
                 services.profile_service.admin_update_participant_name(
@@ -165,7 +184,11 @@ else:
         f"{row['name']} (id {row['user_id']})": int(row["user_id"])
         for row in doubler_rows
     }
-    selected_label = st.selectbox("Participant", list(options.keys())) if options else None
+    if options:
+        render_form_field_label("Participant")
+        selected_label = st.selectbox("Participant", list(options.keys()), label_visibility="collapsed")
+    else:
+        selected_label = None
 
     if selected_label:
         selected_user_id = options[selected_label]
@@ -202,10 +225,12 @@ else:
                     f"#{m.match_id} - {m.game_type} (order {m.scheduled_order or '-'})": m.match_id
                     for m in participant_matches
                 }
+                render_form_field_label("Reassign to upcoming match")
                 selected_match_label = st.selectbox(
                     "Reassign to upcoming match",
                     list(match_option_map.keys()),
                     key="reassign_match",
+                    label_visibility="collapsed",
                 )
                 if st.button("Force reassign doubler", width="stretch"):
                     try:

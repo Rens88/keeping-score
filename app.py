@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.session import get_current_user, render_sidebar
 
@@ -12,21 +12,14 @@ services = get_services()
 current_user = get_current_user(services)
 render_sidebar(current_user)
 
-st.title("Weekend Tournament Tracker")
+render_page_intro(
+    "Weekend Tournament Tracker",
+    "Use the quick links below to move between leaderboard, matches, profiles, and admin tools.",
+)
 
 if current_user:
     st.success("You are logged in.")
     st.write("Use the sidebar to navigate between leaderboard, matches, and your profile.")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Open Leaderboard", width="stretch", key="home_open_leaderboard"):
-            st.switch_page("pages/03_Leaderboard.py")
-    with col2:
-        if st.button("Open Upcoming Matches", width="stretch", key="home_open_upcoming"):
-            st.switch_page("pages/04_Upcoming_Matches.py")
-    with col3:
-        if st.button("Open My Profile", width="stretch", key="home_open_profile"):
-            st.switch_page("pages/06_My_Profile.py")
 
     if current_user.role == "admin":
         st.divider()

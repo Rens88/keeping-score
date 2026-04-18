@@ -72,3 +72,108 @@ Requested Changes (summarized)
 15. Verbose Windows launcher behavior:
 - Make the Windows `.bat` launcher verbose with explicit step logging, similar to provided reference style.
 - Ensure the `.bat` always pauses before closing, including on failure.
+
+16. LAN verification troubleshooting:
+- Provide exact steps to verify laptop and phone are on the same local subnet (expected `192.168.2.x`).
+- Clarify which address to use from phone browser (`http://<laptop-lan-ip>:8501`, not `0.0.0.0`).
+- Provide practical checks for Wi-Fi details, VPN/mobile-data interference, and router client isolation.
+
+17. Firewall validation and next diagnostics:
+- Confirm Windows inbound firewall rule for TCP 8501 is correctly created on the Private profile.
+- Continue with targeted diagnostics to isolate whether remaining failure is due to router client isolation, wrong active network profile, or app-specific blocking.
+
+18. Non-Streamlit LAN connectivity test result:
+- User confirmed a plain Python HTTP server on port 9999 was also unreachable from phone.
+- Use this as evidence to prioritize LAN path diagnostics (firewall scope for test port, device isolation, or route/profile mismatch) over Streamlit-specific fixes.
+
+19. External second-opinion request:
+- Prepare a concise, high-context troubleshooting prompt the user can paste into another LLM.
+- Include attempted steps, confirmed facts, and request new diagnostic ideas without repeating already-tried basics.
+
+20. LAN connectivity debugging outcome (other-LLM summary):
+- Goal:
+  - Access a locally hosted Streamlit app (`0.0.0.0:8501`) from another device (phone) on the same Wi-Fi network.
+- Observed behavior:
+  - App runs correctly on laptop (`localhost` works).
+  - App not accessible from phone via `http://<local-ip>:port`.
+  - Same issue reproduced with simple server (`python -m http.server`), confirming issue is not Streamlit-specific.
+- Key diagnostic findings:
+  - Same subnet (`192.168.2.x`), devices visible in router.
+  - Correct bind (`0.0.0.0`) and listening ports confirmed.
+  - Critical test: firewall ON -> connection fails; firewall OFF -> connection works.
+  - Conclusion: Windows Firewall is the blocker.
+- Root cause:
+  - Windows Defender Firewall had auto-generated inbound `Block` rules for `python3.12.exe` on `Private, Public` profiles.
+  - These can be created when Python first opens a listening socket and access is denied.
+- Important firewall behavior:
+  - Block rules override allow rules.
+  - Allow rules (including specific ports/subnets) do not work while conflicting block rules exist.
+  - "Query User" style rules can persist with high precedence.
+- Fix applied:
+  - Removed blocking Python inbound rules:
+    - `Get-NetFirewallRule -Enabled True -Direction Inbound -Action Block | Where-Object {$_.DisplayName -eq "Python"} | Remove-NetFirewallRule`
+  - Added clean program-based allow rule:
+    - `New-NetFirewallRule -DisplayName "Allow Python LAN (Private)" -Direction Inbound -Action Allow -Program "<python.exe path>" -Protocol TCP -Profile Private -RemoteAddress 192.168.2.0/24`
+- Final result:
+  - Firewall ON and LAN access works from phone.
+  - Works for both `http.server` and Streamlit.
+- Key lessons:
+  - Always test with `python -m http.server` to separate app vs network issues.
+  - If bind/subnet are correct and firewall OFF works, suspect firewall rule precedence.
+  - Check block rules first (`Get-NetFirewallRule -Action Block`), then allow rules.
+  - Prefer program-level allow rules, scoped to Private profile and local subnet.
+  - Windows Store Python (`WindowsApps`) can produce confusing firewall rule behavior.
+- Classification:
+  - Category: Networking -> Local LAN -> Firewall.
+  - Failure mode: Silent block due to hidden high-precedence rule.
+  - Detection signal: Works when firewall OFF, fails otherwise.
+- Recommended future setup:
+  - Keep one clean allow rule for Python executable.
+  - Scope to Private network and local subnet.
+  - Avoid duplicate/conflicting rules.
+  - Periodically clean firewall rules.
+
+21. Comprehensive UI readability refresh:
+- Prioritize readable contrast across light/dark contexts over strict color preference, while still leaning on an orange, white, and black-friendly palette.
+- Strengthen shared theme styling for titles, body text, captions, helper instructions, inputs, selects, uploaders, toggles, tabs, alerts, metrics, tables, and button states.
+- Add consistent page intro cards so page titles and instructions stay visible and easy to scan.
+- Make the top quick-navigation buttons more mobile-friendly by splitting them into shorter rows instead of one cramped strip.
+- Improve clarity on login, invitation, and profile screens with clearer section framing and guidance copy.
+
+22. Header/mobile layout and compact leaderboard follow-up:
+- Fix the broken page-intro/header rendering where raw HTML appeared in the UI.
+- Improve the top header so the logo/banner layout looks intentional on mobile instead of stacking awkwardly.
+- Stop forcing light mode and make the shared theme adapt better to both light and dark environments.
+- Replace the wide leaderboard dataframe with a narrower responsive layout that keeps name + motto together and fits mobile screens without horizontal scrolling.
+- Strengthen README LAN troubleshooting with the previously requested subnet, host-IP, VPN/mobile-data, and firewall-rule guidance.
+- Produce a robust implementation plan for keeping users logged in across page refreshes, without shipping an unsafe quick fix first.
+
+23. Page-intro rendering and dark-mode label readability correction:
+- Fix the shared page-intro rendering path so hard-coded HTML blocks are rendered as HTML instead of appearing as literal markup/code text.
+- Route shared banner/intro/footer HTML through a direct HTML renderer when Streamlit supports it, with a safe markdown fallback.
+- Strengthen label, caption, and helper-text contrast in the shared theme so login/form text stays readable in dark mode instead of fading into the background.
+
+24. Release metadata update command:
+- User explicitly said "update", so `release_info.json` was updated again.
+- Patch version was incremented by 1 and date remained today's date.
+- Nickname was refreshed to summarize the latest readability and header fixes.
+
+25. Mobile form-label readability hardening:
+- Stop relying on Streamlit's built-in widget labels for the main forms where labels remained too dim on dark mobile screens.
+- Add shared high-contrast custom field-label styling and render visible labels above collapsed Streamlit widgets.
+- Apply the custom labels across login, invitation, profile, doubler selection, and admin form screens so text input/select labels stay readable in dark mode.
+
+26. Mobile UI regression cleanup from screenshot review:
+- Replace profile `st.metric` usage with custom stat tiles so values and labels stay readable on dark mobile screens.
+- Darken and rebalance dropdown/listbox, uploader-button, checkbox, and toggle styling so controls are readable without bright white panels or near-invisible labels.
+- Stop using a dropdown for the participant doubler picker when it hurts mobile readability; use a clearer single-option or radio-style flow instead.
+- Route leaderboard and compact past-match HTML through the shared direct HTML renderer so rows cannot fall back into literal markup/table-like rendering again.
+
+27. Home page shortcut cleanup:
+- Remove the bottom home-page participant shortcut buttons for opening leaderboard, upcoming matches, and profile.
+- Keep navigation available through the existing quick navigation and sidebar instead of duplicating those buttons on the home screen.
+
+28. Leaderboard compact-expand behavior:
+- Show only the rank, photo, name, motto, and total points in the default leaderboard row.
+- Hide secondary stats by default and reveal them only when the user clicks the player name area to expand that row.
+- Keep the leaderboard mobile-friendly while reducing default visual density.

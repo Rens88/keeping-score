@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
@@ -14,7 +14,7 @@ services = get_services()
 admin_user = require_admin(services)
 render_sidebar(admin_user)
 
-st.title("Enter or Edit Results")
+render_page_intro("Enter or Edit Results", "Record outcomes, add notes, or reset a match back to upcoming or live.", eyebrow="Admin")
 
 cards = services.match_service.list_matches_for_view()
 if not cards:
@@ -25,7 +25,8 @@ label_to_match_id = {
     f"#{card.match_id} - {card.game_type} ({card.status})": card.match_id
     for card in cards
 }
-selected_label = st.selectbox("Select match", list(label_to_match_id.keys()))
+render_form_field_label("Select match")
+selected_label = st.selectbox("Select match", list(label_to_match_id.keys()), label_visibility="collapsed")
 selected_match_id = label_to_match_id[selected_label]
 selected_card = next(card for card in cards if card.match_id == selected_match_id)
 
@@ -48,13 +49,16 @@ outcome_options = ["side1_win", "draw", "side2_win"]
 default_outcome_index = outcome_options.index(selected_card.outcome) if selected_card.outcome in outcome_options else 0
 
 with st.form("result_form"):
+    render_form_field_label("Result")
     outcome = st.selectbox(
         "Result",
         outcome_options,
         index=default_outcome_index,
         format_func=lambda o: OUTCOME_BADGE.get(o, o),
+        label_visibility="collapsed",
     )
-    notes = st.text_area("Notes", value=selected_card.result_notes or "")
+    render_form_field_label("Notes")
+    notes = st.text_area("Notes", value=selected_card.result_notes or "", label_visibility="collapsed")
     submit_result = st.form_submit_button("Save result", width="stretch")
 
 if submit_result:
@@ -73,10 +77,12 @@ if submit_result:
 
 st.divider()
 st.subheader("Reset result")
+render_form_field_label("Status after clearing result")
 new_status = st.selectbox(
     "Status after clearing result",
     ["upcoming", "live"],
     index=0,
+    label_visibility="collapsed",
 )
 if st.button("Clear result for this match", width="stretch", type="secondary"):
     try:

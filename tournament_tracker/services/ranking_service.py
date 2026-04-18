@@ -17,6 +17,7 @@ POINTS = {
 class ParticipantStats:
     user_id: int
     total_points: float = 0.0
+    bonus_points: float = 0.0
     matches_played: int = 0
     wins: int = 0
     draws: int = 0
@@ -63,10 +64,12 @@ class RankingService:
             else:
                 stats.losses += 1
 
-            points = POINTS[player_outcome]
+            base_points = POINTS[player_outcome]
+            points = base_points
             if doubler_match_by_user.get(user_id) == match_id:
                 points *= 2
             stats.total_points += points
+            stats.bonus_points += points - base_points
 
         if not stats_by_user:
             return []
@@ -105,6 +108,7 @@ class RankingService:
                     motto=(profile.get("motto") or "") if profile else "",
                     photo_blob=profile.get("photo_blob") if profile else None,
                     photo_mime_type=profile.get("photo_mime_type") if profile else None,
+                    bonus_points=round(item.bonus_points, 2),
                     total_points=round(item.total_points, 2),
                     matches_played=item.matches_played,
                     wins=item.wins,

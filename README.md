@@ -9,7 +9,7 @@ Production-ready V1 Streamlit app for a weekend group tournament (14 participant
 
 ## Tech choices
 - **Framework:** Streamlit multipage app
-- **Backend/Persistence:** SQLite (`data/tournament.db`)
+- **Backend/Persistence:** SQLite (`demo_state/weekend_tracker_requested_demo_state.sqlite3` by default)
 - **Password hashing:** PBKDF2-HMAC-SHA256 (salted, high iteration count)
 - **Photo storage (V1 choice):** participant photos are stored as **BLOBs in SQLite**
   - Why: no extra storage service required, deployment-friendly for MVP
@@ -109,7 +109,7 @@ Production-ready V1 Streamlit app for a weekend group tournament (14 participant
 
 Set via environment variables or Streamlit secrets:
 
-- `DB_PATH` (default: `data/tournament.db`)
+- `DB_PATH` (default: `demo_state/weekend_tracker_requested_demo_state.sqlite3`)
 - `APP_BASE_URL` (optional, used to render invitation links)
 - `DEFAULT_INVITE_EXPIRY_HOURS` (default: `72`)
 - `SEED_ADMIN_USERNAME` (default: `admin`)
@@ -122,7 +122,7 @@ Example `.streamlit/secrets.toml`:
 SEED_ADMIN_USERNAME = "admin"
 SEED_ADMIN_EMAIL = "admin@weekend.local"
 SEED_ADMIN_PASSWORD = "replace-with-strong-password"
-DB_PATH = "data/tournament.db"
+DB_PATH = "demo_state/weekend_tracker_requested_demo_state.sqlite3"
 APP_BASE_URL = "https://your-app-name.streamlit.app"
 DEFAULT_INVITE_EXPIRY_HOURS = "72"
 ```

@@ -1,0 +1,53 @@
+Build Instructions Log
+Last updated: 2026-04-18
+
+Purpose
+- Keep a running summary of requested product/code changes so new requests can be checked for alignment with prior decisions.
+
+Requested Changes (summarized)
+1. Leaderboard:
+- Add a bonus-points column and a total-points column.
+- Define bonus points as points above/below default win/draw/loss base points.
+
+2. Past matches view:
+- Make the overview compact (single-row style per match).
+- Show who played whom, result, and points gained.
+- Color-code personal outcome: win green, draw blue, loss red.
+
+3. Profile/light-dark readability:
+- Fix visibility issues where metric values/labels became unreadable in some light/dark states.
+
+4. Release metadata workflow and display:
+- Add an agent rule to ask for explicit "Update" before editing `release_info.json`.
+- Show release metadata at the bottom of the app: nickname (left), version (center), date (right).
+
+5. Global theme simplification:
+- Use a simpler color scheme that works in both light and dark contexts.
+- Primary palette direction: orange, white, black (with supporting neutral tones).
+- Ensure form instructions, field labels, field values, tabs, and status messages remain readable.
+
+6. Agent memory and conflict behavior:
+- Add an instruction that all requested changes are logged.
+- Before implementing new requests, check against prior logged requests.
+- If there is a conflict, ask for clarification before implementing.
+
+7. File format correction:
+- Use `build_instructions.txt` for this log (not `build_instructions.py`).
+
+8. Re-confirmation of file format:
+- Reaffirm that request-history logging must stay in `build_instructions.txt` only.
+
+9. Release metadata update command:
+- User explicitly said "update", so `release_info.json` was updated.
+- Patch version was incremented by 1 and release date kept at today's date.
+- Nickname was set to summarize the latest most important changes.
+
+10. Default data-source configuration:
+- Set repository defaults to load database state from `demo_state`.
+- Updated default `DB_PATH` to `demo_state/weekend_tracker_requested_demo_state.sqlite3`.
+- Updated README examples/documentation so defaults match runtime behavior.
+
+11. Release metadata update command:
+- User explicitly said "update" again, so `release_info.json` was updated again.
+- Patch version was incremented by 1 and date remained today's date.
+- Nickname was updated to reflect the latest major change (default demo-state loading).

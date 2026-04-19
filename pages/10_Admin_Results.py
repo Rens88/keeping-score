@@ -11,7 +11,7 @@ from tournament_tracker.ui import OUTCOME_BADGE
 st.set_page_config(page_title="Enter or Edit Results", page_icon="✅", layout="wide")
 
 services = get_services()
-admin_user = require_admin(services)
+admin_user = require_admin(services, current_page="pages/10_Admin_Results.py")
 render_sidebar(admin_user)
 
 render_page_intro("Enter or Edit Results", "Record outcomes, add notes, or reset a match back to upcoming or live.", eyebrow="Admin")

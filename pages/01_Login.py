@@ -4,7 +4,12 @@ import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_services
-from tournament_tracker.session import get_current_user, render_sidebar, set_logged_in_user
+from tournament_tracker.session import (
+    get_current_user,
+    get_initial_page_for_user,
+    render_sidebar,
+    set_logged_in_user,
+)
 
 st.set_page_config(page_title="Login", page_icon="🔐", layout="centered")
 
@@ -15,9 +20,7 @@ render_sidebar(current_user)
 render_page_intro("Login", "Use your username or email and password.")
 
 if current_user:
-    st.success("You are already logged in.")
-    if st.button("Go to Leaderboard", width="stretch", key="login_go_leaderboard"):
-        st.switch_page("pages/03_Leaderboard.py")
+    st.switch_page(get_initial_page_for_user(services, current_user))
     st.stop()
 
 st.caption("Participant and admin accounts both sign in here.")
@@ -35,9 +38,9 @@ if submitted:
     else:
         set_logged_in_user(user)
         st.success("Logged in successfully.")
-        st.rerun()
+        st.switch_page(get_initial_page_for_user(services, user))
 
 st.divider()
-if st.button("I have an invitation link", width="stretch", key="login_go_invite"):
+if st.button("How does registration work?", width="stretch", key="login_go_invite"):
     st.switch_page("pages/02_Accept_Invitation.py")
 render_bottom_decoration()

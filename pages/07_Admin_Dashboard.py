@@ -9,7 +9,7 @@ from tournament_tracker.session import render_sidebar, require_admin
 st.set_page_config(page_title="Admin Dashboard", page_icon="🛡️", layout="wide")
 
 services = get_services()
-admin_user = require_admin(services)
+admin_user = require_admin(services, current_page="pages/07_Admin_Dashboard.py")
 render_sidebar(admin_user)
 
 render_page_intro("Admin Dashboard", "A quick snapshot of participants, matches, and recent activity.", eyebrow="Admin")
@@ -39,14 +39,16 @@ col4.metric("Completed", len(completed_matches))
 
 st.divider()
 st.subheader("Quick Actions")
-qa1, qa2, qa3, qa4 = st.columns(4)
-if qa1.button("Participants & Invitations", width="stretch", key="admin_dash_quick_participants"):
+qa1, qa2, qa3, qa4, qa5 = st.columns(5)
+if qa1.button("Participants & Registration", width="stretch", key="admin_dash_quick_participants"):
     st.switch_page("pages/08_Admin_Participants_Invitations.py")
-if qa2.button("Manage Schedule", width="stretch", key="admin_dash_quick_schedule"):
+if qa2.button("Registration Game", width="stretch", key="admin_dash_quick_registration_game"):
+    st.switch_page("pages/12_Admin_Registration_Game.py")
+if qa3.button("Manage Schedule", width="stretch", key="admin_dash_quick_schedule"):
     st.switch_page("pages/09_Admin_Schedule.py")
-if qa3.button("Enter/Edit Results", width="stretch", key="admin_dash_quick_results"):
+if qa4.button("Enter/Edit Results", width="stretch", key="admin_dash_quick_results"):
     st.switch_page("pages/10_Admin_Results.py")
-if qa4.button("Backup & Restore", width="stretch", key="admin_dash_quick_backup"):
+if qa5.button("Backup & Restore", width="stretch", key="admin_dash_quick_backup"):
     st.switch_page("pages/11_Admin_Backup_Restore.py")
 
 st.divider()

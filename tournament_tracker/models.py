@@ -20,6 +20,13 @@ class User:
     is_active: bool
     created_at: str
     updated_at: str
+    account_origin: str = "legacy"
+    registration_questions_answered: int = 0
+    registration_game_guesses_used: int = 0
+    registration_game_completed: bool = False
+    registration_game_incorrect_answers: int = 0
+    registration_game_points: float = 0.0
+    registration_game_completed_at: Optional[str] = None
 
 
 @dataclass(slots=True)
@@ -141,6 +148,13 @@ class UserWithProfile:
     motto: Optional[str]
     photo_blob: Optional[bytes]
     photo_mime_type: Optional[str]
+    account_origin: str = "legacy"
+    registration_questions_answered: int = 0
+    registration_game_guesses_used: int = 0
+    registration_game_completed: bool = False
+    registration_game_incorrect_answers: int = 0
+    registration_game_points: float = 0.0
+    registration_game_completed_at: Optional[str] = None
 
 
 @dataclass(slots=True)

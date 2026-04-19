@@ -10,7 +10,7 @@ from tournament_tracker.session import logout_user, render_sidebar, require_admi
 st.set_page_config(page_title="Admin Backup and Restore", page_icon="💾", layout="wide")
 
 services = get_services()
-admin_user = require_admin(services)
+admin_user = require_admin(services, current_page="pages/11_Admin_Backup_Restore.py")
 render_sidebar(admin_user)
 
 render_page_intro("Backup and Restore", "Export the full tournament state or replace it from a trusted backup.", eyebrow="Admin")

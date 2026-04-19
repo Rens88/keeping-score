@@ -9,6 +9,9 @@ from tournament_tracker.branding import CANGEROES_LOGO_URL, render_cangeroes_hea
 from tournament_tracker.models import User
 
 SESSION_USER_ID_KEY = "auth_user_id"
+HOME_PAGE = "app.py"
+REGISTRATION_WAIT_PAGE = "pages/12_And_Now_We_Wait.py"
+REGISTRATION_GAME_PAGE = "pages/13_Registration_Game.py"
 
 
 def set_logged_in_user(user: User) -> None:
@@ -30,9 +33,48 @@ def get_current_user(services: AppServices) -> Optional[User]:
     return user
 
 
-def require_login(services: AppServices) -> User:
+def get_registration_gate_page(services: AppServices, user: User) -> Optional[str]:
+    if not services.registration_service.participant_requires_registration_gate(user):
+        return None
+    if services.registration_service.is_registration_game_active():
+        return REGISTRATION_GAME_PAGE
+    return REGISTRATION_WAIT_PAGE
+
+
+def get_initial_page_for_user(services: AppServices, user: User) -> str:
+    return get_registration_gate_page(services, user) or HOME_PAGE
+
+
+def enforce_registration_gate(
+    services: AppServices,
+    user: User,
+    *,
+    current_page: str,
+    allow_gate_page: bool = False,
+) -> None:
+    destination = get_registration_gate_page(services, user)
+    if not destination:
+        return
+    if allow_gate_page and current_page == destination:
+        return
+    st.switch_page(destination)
+
+
+def require_login(
+    services: AppServices,
+    *,
+    current_page: Optional[str] = None,
+    allow_gate_page: bool = False,
+) -> User:
     user = get_current_user(services)
     if user:
+        if current_page:
+            enforce_registration_gate(
+                services,
+                user,
+                current_page=current_page,
+                allow_gate_page=allow_gate_page,
+            )
         return user
 
     st.warning("Please log in first.")
@@ -41,8 +83,8 @@ def require_login(services: AppServices) -> User:
     st.stop()
 
 
-def require_admin(services: AppServices) -> User:
-    user = require_login(services)
+def require_admin(services: AppServices, *, current_page: Optional[str] = None) -> User:
+    user = require_login(services, current_page=current_page)
     if user.role == "admin":
         return user
 
@@ -65,6 +107,25 @@ def render_main_navigation(user: Optional[User]) -> None:
     if not user:
         return
 
+    gate_destination: Optional[str] = None
+    try:
+        from tournament_tracker.bootstrap import get_services
+
+        gate_destination = get_registration_gate_page(get_services(), user)
+    except Exception:
+        gate_destination = None
+
+    if gate_destination:
+        label = "🧩 Registration Game" if gate_destination == REGISTRATION_GAME_PAGE else "⏳ And Now We Wait"
+        _render_navigation_rows(
+            [
+                (label, gate_destination, "top_nav_registration_gate"),
+            ],
+            row_size=1,
+        )
+        st.divider()
+        return
+
     st.markdown("**Quick Navigation**")
     st.caption("Use the top row for fast page switches without opening the sidebar.")
     _render_navigation_rows(
@@ -82,6 +143,7 @@ def render_main_navigation(user: Optional[User]) -> None:
             [
                 ("🛡️ Admin Home", "pages/07_Admin_Dashboard.py", "top_nav_admin_home"),
                 ("👥 Participants", "pages/08_Admin_Participants_Invitations.py", "top_nav_admin_participants"),
+                ("🧩 Registration Game", "pages/12_Admin_Registration_Game.py", "top_nav_admin_registration_game"),
                 ("🗓️ Schedule", "pages/09_Admin_Schedule.py", "top_nav_admin_schedule"),
                 ("✅ Results", "pages/10_Admin_Results.py", "top_nav_admin_results"),
                 ("💾 Backup", "pages/11_Admin_Backup_Restore.py", "top_nav_admin_backup"),
@@ -109,22 +171,38 @@ def render_sidebar(user: Optional[User]) -> None:
 
         st.divider()
         st.subheader("Navigation")
-        if st.button("Leaderboard", width="stretch", key="side_nav_leaderboard"):
-            st.switch_page("pages/03_Leaderboard.py")
-        if st.button("Upcoming", width="stretch", key="side_nav_upcoming"):
-            st.switch_page("pages/04_Upcoming_Matches.py")
-        if st.button("Past Matches", width="stretch", key="side_nav_past"):
-            st.switch_page("pages/05_Past_Matches.py")
-        if st.button("My Profile", width="stretch", key="side_nav_profile"):
-            st.switch_page("pages/06_My_Profile.py")
+        gate_destination: Optional[str] = None
+        if user:
+            try:
+                from tournament_tracker.bootstrap import get_services
+
+                gate_destination = get_registration_gate_page(get_services(), user)
+            except Exception:
+                gate_destination = None
+
+        if gate_destination:
+            label = "Registration Game" if gate_destination == REGISTRATION_GAME_PAGE else "And Now We Wait"
+            if st.button(label, width="stretch", key="side_nav_registration_gate"):
+                st.switch_page(gate_destination)
+        else:
+            if st.button("Leaderboard", width="stretch", key="side_nav_leaderboard"):
+                st.switch_page("pages/03_Leaderboard.py")
+            if st.button("Upcoming", width="stretch", key="side_nav_upcoming"):
+                st.switch_page("pages/04_Upcoming_Matches.py")
+            if st.button("Past Matches", width="stretch", key="side_nav_past"):
+                st.switch_page("pages/05_Past_Matches.py")
+            if st.button("My Profile", width="stretch", key="side_nav_profile"):
+                st.switch_page("pages/06_My_Profile.py")
 
         if user and user.role == "admin":
             st.divider()
             st.subheader("Admin")
             if st.button("Dashboard", width="stretch", key="side_nav_admin_dashboard"):
                 st.switch_page("pages/07_Admin_Dashboard.py")
-            if st.button("Participants & Invites", width="stretch", key="side_nav_admin_participants"):
+            if st.button("Participants & Registration", width="stretch", key="side_nav_admin_participants"):
                 st.switch_page("pages/08_Admin_Participants_Invitations.py")
+            if st.button("Registration Game", width="stretch", key="side_nav_admin_registration_game"):
+                st.switch_page("pages/12_Admin_Registration_Game.py")
             if st.button("Manage Schedule", width="stretch", key="side_nav_admin_schedule"):
                 st.switch_page("pages/09_Admin_Schedule.py")
             if st.button("Enter/Edit Results", width="stretch", key="side_nav_admin_results"):

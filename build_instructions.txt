@@ -191,3 +191,7 @@ Requested Changes (summarized)
 - Use four clear answer buttons instead of a single radio selector.
 - Keep score as `10 - aantal fout beantwoorde vragen`, stop the game immediately when the user correctly guesses `Erp`, and make open guess validation trim spaces and ignore letter case.
 - Ensure the final hint literally gives away the answer `Erp`.
+
+31. Streamlit Cloud import hardening:
+- Fix the online import failure around `app.py -> tournament_tracker.session` by removing an unnecessary runtime import of `AppServices` from `tournament_tracker.bootstrap`.
+- Keep the bootstrap import available only for type checking, reducing the risk of fragile import chains during Streamlit Cloud startup.

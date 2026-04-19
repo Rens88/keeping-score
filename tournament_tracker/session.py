@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import streamlit as st
 
-from tournament_tracker.bootstrap import AppServices
 from tournament_tracker.branding import CANGEROES_LOGO_URL, render_cangeroes_header
 from tournament_tracker.models import User
+
+if TYPE_CHECKING:
+    from tournament_tracker.bootstrap import AppServices
 
 SESSION_USER_ID_KEY = "auth_user_id"
 HOME_PAGE = "app.py"

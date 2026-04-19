@@ -10,7 +10,7 @@ from tournament_tracker.ui import render_past_matches_compact
 st.set_page_config(page_title="Past Matches", page_icon="📜", layout="wide")
 
 services = get_services()
-user = require_login(services)
+user = require_login(services, current_page="pages/05_Past_Matches.py")
 render_sidebar(user)
 
 render_page_intro("Past Matches", "Review completed matches and the points they produced.")

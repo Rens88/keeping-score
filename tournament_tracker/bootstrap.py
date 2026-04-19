@@ -22,6 +22,7 @@ from tournament_tracker.services.backup_service import BackupService
 from tournament_tracker.services.invitation_service import InvitationService
 from tournament_tracker.services.match_service import MatchService
 from tournament_tracker.services.profile_service import ProfileService
+from tournament_tracker.services.registration_service import RegistrationService
 from tournament_tracker.services.ranking_service import RankingService
 
 
@@ -35,6 +36,7 @@ class AppServices:
     match_service: MatchService
     ranking_service: RankingService
     profile_service: ProfileService
+    registration_service: RegistrationService
 
 
 def initialize_repository(config: AppConfig | None = None) -> tuple[AppConfig, SQLiteRepository]:
@@ -91,4 +93,5 @@ def get_services() -> AppServices:
         match_service=MatchService(repo),
         ranking_service=RankingService(repo),
         profile_service=ProfileService(repo),
+        registration_service=RegistrationService(repo, config),
     )

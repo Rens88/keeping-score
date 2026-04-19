@@ -45,8 +45,13 @@ class RankingService:
             int(row["participant_user_id"]): int(row["match_id"])
             for row in doubler_rows
         }
+        participants = self.repo.list_participants()
 
         stats_by_user: dict[int, ParticipantStats] = {}
+
+        for participant in participants:
+            stats = stats_by_user.setdefault(participant.user_id, ParticipantStats(user_id=participant.user_id))
+            stats.total_points = float(participant.registration_game_points)
 
         for row in rows:
             user_id = int(row["participant_user_id"])
@@ -74,8 +79,7 @@ class RankingService:
         if not stats_by_user:
             return []
 
-        user_ids = list(stats_by_user.keys())
-        profile_map = self.repo.get_profiles_by_user_ids(user_ids)
+        profile_map = {participant.user_id: participant for participant in participants}
 
         ordered = sorted(
             stats_by_user.values(),
@@ -92,11 +96,11 @@ class RankingService:
                 rank = idx
                 previous_key = current_key
 
-            profile = profile_map.get(item.user_id, {})
+            profile = profile_map.get(item.user_id)
             display_name = (
-                profile.get("display_name")
-                or profile.get("username")
-                or profile.get("email")
+                (profile.display_name if profile else None)
+                or (profile.username if profile else None)
+                or (profile.email if profile else None)
                 or f"User {item.user_id}"
             )
 
@@ -105,9 +109,9 @@ class RankingService:
                     rank=rank,
                     user_id=item.user_id,
                     display_name=str(display_name),
-                    motto=(profile.get("motto") or "") if profile else "",
-                    photo_blob=profile.get("photo_blob") if profile else None,
-                    photo_mime_type=profile.get("photo_mime_type") if profile else None,
+                    motto=(profile.motto if profile and profile.motto else "") if profile else "",
+                    photo_blob=profile.photo_blob if profile else None,
+                    photo_mime_type=profile.photo_mime_type if profile else None,
                     bonus_points=round(item.bonus_points, 2),
                     total_points=round(item.total_points, 2),
                     matches_played=item.matches_played,

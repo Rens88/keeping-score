@@ -11,7 +11,7 @@ from tournament_tracker.ui import render_match_card
 st.set_page_config(page_title="Upcoming Matches", page_icon="📅", layout="wide")
 
 services = get_services()
-user = require_login(services)
+user = require_login(services, current_page="pages/04_Upcoming_Matches.py")
 render_sidebar(user)
 
 render_page_intro("Upcoming Matches", "See live fixtures, upcoming matches, and the current state of your doubler.")

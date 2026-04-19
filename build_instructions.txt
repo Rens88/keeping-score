@@ -177,3 +177,17 @@ Requested Changes (summarized)
 - Show only the rank, photo, name, motto, and total points in the default leaderboard row.
 - Hide secondary stats by default and reveal them only when the user clicks the player name area to expand that row.
 - Keep the leaderboard mobile-friendly while reducing default visual density.
+
+29. Registration overhaul and registration game:
+- Replace the participant self-service invite-token flow with an admin-managed registration flow where admins create participant accounts, choose passwords, and generate a funny shareable invitation message containing the web link, username, and password.
+- Route newly created participants to an "And now we wait..." page until the admin activates the registration game.
+- Add a dedicated admin registration-game page with an activation toggle and placeholder question/hint preview.
+- Add a participant registration game that asks placeholder multiple-choice questions, reveals one hint per answered question, allows a location guess after each question, accepts "Erp" as the correct answer, awards `10 - incorrect answers` starting points, and links to the accommodation on success.
+- Carry earned registration-game points into the leaderboard as the participant's starting ranking.
+
+30. Registration game exact content and UX refinement:
+- Replace the placeholder registration-game questions and hints with the exact 10 supplied Dutch multiple-choice questions, A/B/C/D option keys, correct-answer keys, and hints.
+- Keep the game flow as one multiple-choice answer followed immediately by feedback, the hint, and one destination-guess input per question.
+- Use four clear answer buttons instead of a single radio selector.
+- Keep score as `10 - aantal fout beantwoorde vragen`, stop the game immediately when the user correctly guesses `Erp`, and make open guess validation trim spaces and ignore letter case.
+- Ensure the final hint literally gives away the answer `Erp`.

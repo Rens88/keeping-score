@@ -13,7 +13,7 @@ from tournament_tracker.session import render_sidebar, require_admin
 st.set_page_config(page_title="Manage Schedule", page_icon="🗓️", layout="wide")
 
 services = get_services()
-admin_user = require_admin(services)
+admin_user = require_admin(services, current_page="pages/09_Admin_Schedule.py")
 render_sidebar(admin_user)
 
 render_page_intro("Manage Schedule", "Create, edit, and remove matches with clear pairings and timing.", eyebrow="Admin")

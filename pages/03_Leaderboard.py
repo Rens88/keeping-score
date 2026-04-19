@@ -10,7 +10,7 @@ from tournament_tracker.ui import render_leaderboard
 st.set_page_config(page_title="Leaderboard", page_icon="🏆", layout="wide")
 
 services = get_services()
-user = require_login(services)
+user = require_login(services, current_page="pages/03_Leaderboard.py")
 render_sidebar(user)
 
 render_page_intro("Leaderboard", "Current standings with bonus points, totals, and special-use status.")

@@ -6,76 +6,103 @@ from tournament_tracker.branding import render_bottom_decoration, render_form_fi
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
+from tournament_tracker.ui import render_copy_to_clipboard_button
 
-st.set_page_config(page_title="Participants and Invitations", page_icon="👥", layout="wide")
+st.set_page_config(page_title="Participants and Registration", page_icon="👥", layout="wide")
 
 services = get_services()
-admin_user = require_admin(services)
+admin_user = require_admin(services, current_page="pages/08_Admin_Participants_Invitations.py")
 render_sidebar(admin_user)
 
 render_page_intro(
-    "Participants and Invitations",
-    "Invite players, manage participant details, and troubleshoot doubler state.",
+    "Participants and Registration",
+    "Create registration accounts, generate invitation copy, manage names, and troubleshoot participant access.",
     eyebrow="Admin",
 )
 
-st.subheader("Generate invitation")
-with st.form("create_invitation_form"):
-    render_form_field_label("Expires in (hours)")
-    expiry_hours = st.number_input(
-        "Expires in (hours)",
-        min_value=1,
-        max_value=336,
-        value=services.config.default_invite_expiry_hours,
-        step=1,
-        label_visibility="collapsed",
+game_is_active = services.registration_service.is_registration_game_active()
+if not services.config.app_base_url:
+    st.warning(
+        "APP_BASE_URL is not configured yet, so invitation messages will use `/` as the link. "
+        "Set APP_BASE_URL when you want a shareable full web link in the copied invitation."
     )
-    render_form_field_label("Note", "Optional.")
-    note = st.text_input("Note (optional)", label_visibility="collapsed")
-    create_invite = st.form_submit_button("Create invitation", width="stretch")
 
-if create_invite:
-    try:
-        result = services.invitation_service.create_invitation(
-            created_by_user_id=admin_user.id,
-            expiry_hours=int(expiry_hours),
-            note=note,
-        )
-        if services.config.app_base_url:
-            invite_link = (
-                f"{services.config.app_base_url}/Accept_Invitation"
-                f"?token={result.token}"
+
+def participant_name(participant: object) -> str:
+    display_name = getattr(participant, "display_name", None)
+    username = getattr(participant, "username", None)
+    email = getattr(participant, "email", None)
+    user_id = getattr(participant, "user_id", "?")
+    return str(display_name or username or email or f"User {user_id}")
+
+
+def participant_status(participant: object) -> str:
+    if bool(getattr(participant, "registration_game_completed", False)):
+        return "Finished"
+    if int(getattr(participant, "registration_questions_answered", 0)) > 0:
+        return "In progress"
+    if game_is_active:
+        return "Registration game live"
+    return "Waiting"
+
+
+def store_invitation_preview(*, title: str, message: str) -> None:
+    st.session_state["registration_invitation_preview_title"] = title
+    st.session_state["registration_invitation_preview_message"] = message
+
+
+flash_message = st.session_state.pop("registration_invitation_flash_message", None)
+if isinstance(flash_message, str) and flash_message:
+    st.success(flash_message)
+
+with st.container(border=True):
+    st.subheader("Create registration account")
+    st.caption("Admins create the account and password up front. New participants will land on the waiting page until the game is activated.")
+    with st.form("create_registration_account_form", clear_on_submit=True):
+        render_form_field_label("Display name")
+        display_name = st.text_input("Display name", label_visibility="collapsed")
+        render_form_field_label("Username")
+        username = st.text_input("Username", label_visibility="collapsed")
+        render_form_field_label("Email", "Optional.")
+        email = st.text_input("Email (optional)", label_visibility="collapsed")
+        render_form_field_label("Password", "Minimum 4 characters.")
+        password = st.text_input("Password", type="password", label_visibility="collapsed")
+        create_account = st.form_submit_button("Create account", width="stretch")
+
+    if create_account:
+        try:
+            user = services.registration_service.create_admin_managed_participant(
+                admin_user_id=admin_user.id,
+                display_name=display_name,
+                username=username,
+                password=password,
+                email=email,
             )
-        else:
-            invite_link = f"/Accept_Invitation?token={result.token}"
+            invitation_message = services.registration_service.build_registration_invitation(
+                display_name=display_name,
+                username=username,
+                password=password,
+            )
+            store_invitation_preview(
+                title=f"Registration invitation for {display_name.strip() or username.strip()}",
+                message=invitation_message,
+            )
+            st.success(f"Participant account created for {display_name.strip() or username.strip()} (user id {user.id}).")
+        except ValidationError as exc:
+            st.error(str(exc))
 
-        st.success("Invitation created.")
-        st.code(invite_link)
-        st.caption("If APP_BASE_URL is not set, copy the token and append it to your app URL.")
-    except ValidationError as exc:
-        st.error(str(exc))
-
-st.divider()
-st.subheader("Recent invitations")
-invitations = services.repo.list_invitations(limit=50)
-if not invitations:
-    st.info("No invitations created yet.")
-else:
-    st.dataframe(
-        [
-            {
-                "id": invite.id,
-                "created_at": invite.created_at,
-                "expires_at": invite.expires_at,
-                "used_at": invite.used_at or "-",
-                "note": invite.note or "",
-                "created_by": invite.created_by_name or "-",
-            }
-            for invite in invitations
-        ],
-        width="stretch",
-        hide_index=True,
-    )
+preview_message = st.session_state.get("registration_invitation_preview_message")
+if isinstance(preview_message, str) and preview_message.strip():
+    preview_title = str(st.session_state.get("registration_invitation_preview_title") or "Registration invitation")
+    with st.container(border=True):
+        st.subheader(preview_title)
+        st.caption("Copy this straight into WhatsApp, email, carrier pigeon, or your admin chat of choice.")
+        render_copy_to_clipboard_button(
+            "Copy registration invitation",
+            preview_message,
+            key="registration_invitation_preview",
+        )
+        st.code(preview_message)
 
 st.divider()
 st.subheader("Participants")
@@ -85,97 +112,101 @@ if not participants:
 else:
     participant_rows = []
     participant_options: dict[str, int] = {}
+    participants_by_id = {participant.user_id: participant for participant in participants}
     for participant in participants:
-        participant_name = (
-            participant.display_name
-            or participant.username
-            or participant.email
-            or f"User {participant.user_id}"
-        )
-        option_label = f"{participant_name} (id {participant.user_id})"
+        option_label = f"{participant_name(participant)} (id {participant.user_id})"
         participant_options[option_label] = participant.user_id
         participant_rows.append(
             {
                 "user_id": participant.user_id,
-                "name": participant_name,
+                "name": participant_name(participant),
                 "username": participant.username or "",
                 "email": participant.email or "",
-                "motto": participant.motto or "",
+                "status": participant_status(participant),
+                "questions_answered": f"{participant.registration_questions_answered}/10",
+                "incorrect_answers": participant.registration_game_incorrect_answers,
+                "starting_points": f"{participant.registration_game_points:.0f}",
             }
         )
 
     st.dataframe(participant_rows, width="stretch", hide_index=True)
 
-    st.subheader("Reset participant password")
-    if participant_options:
-        render_form_field_label("Participant for password reset")
-        pw_target_label = st.selectbox(
-            "Participant for password reset",
-            list(participant_options.keys()),
-            key="participant_pw_reset_select",
-            label_visibility="collapsed",
-        )
-        pw_target_user_id = participant_options[pw_target_label]
-        render_form_field_label("New password", "Minimum 4 characters.")
-        new_password = st.text_input(
-            "New password",
-            type="password",
-            key="participant_pw_reset_new",
-            help="Minimum 4 characters.",
-            label_visibility="collapsed",
-        )
-        if st.button("Reset password", width="stretch", key="participant_pw_reset_btn"):
-            try:
-                services.auth_service.admin_reset_password(
-                    admin_user_id=admin_user.id,
-                    target_user_id=pw_target_user_id,
-                    new_password=new_password,
-                )
+    st.divider()
+    st.subheader("Reset password and generate fresh invitation")
+    render_form_field_label("Participant")
+    pw_target_label = st.selectbox(
+        "Participant for password reset",
+        list(participant_options.keys()),
+        key="participant_pw_reset_select",
+        label_visibility="collapsed",
+    )
+    pw_target_user_id = participant_options[pw_target_label]
+    pw_target = participants_by_id[pw_target_user_id]
+    render_form_field_label("New password", "Minimum 4 characters.")
+    new_password = st.text_input(
+        "New password",
+        type="password",
+        key="participant_pw_reset_new",
+        help="Minimum 4 characters.",
+        label_visibility="collapsed",
+    )
+    if st.button("Reset password and refresh invitation", width="stretch", key="participant_pw_reset_btn"):
+        try:
+            services.auth_service.admin_reset_password(
+                admin_user_id=admin_user.id,
+                target_user_id=pw_target_user_id,
+                new_password=new_password,
+            )
+            username_for_invite = (pw_target.username or "").strip()
+            if not username_for_invite:
                 st.success("Participant password reset.")
-            except ValidationError as exc:
-                st.error(str(exc))
+                st.info("This participant has no username stored, so no registration invitation message was generated.")
+            else:
+                invitation_message = services.registration_service.build_registration_invitation(
+                    display_name=participant_name(pw_target),
+                    username=username_for_invite,
+                    password=new_password,
+                )
+                store_invitation_preview(
+                    title=f"Fresh registration invitation for {participant_name(pw_target)}",
+                    message=invitation_message,
+                )
+                st.session_state["registration_invitation_flash_message"] = (
+                    "Participant password reset and invitation refreshed."
+                )
+                st.rerun()
+        except ValidationError as exc:
+            st.error(str(exc))
 
     st.divider()
     st.subheader("Edit participant name")
-    if participant_options:
-        render_form_field_label("Participant to rename")
-        selected_participant_label = st.selectbox(
-            "Participant to rename",
-            list(participant_options.keys()),
-            key="participant_rename_select",
-            label_visibility="collapsed",
-        )
-        selected_participant_id = participant_options[selected_participant_label]
-        selected_participant = next(
-            (p for p in participants if p.user_id == selected_participant_id),
-            None,
-        )
-        current_name = (
-            selected_participant.display_name
-            if selected_participant and selected_participant.display_name
-            else selected_participant.username
-            if selected_participant and selected_participant.username
-            else selected_participant.email
-            if selected_participant and selected_participant.email
-            else ""
-        )
-        render_form_field_label("New display name")
-        new_name = st.text_input(
-            "New display name",
-            value=current_name,
-            key="participant_rename_input",
-            label_visibility="collapsed",
-        )
-        if st.button("Save participant name", width="stretch", key="participant_rename_save"):
-            try:
-                services.profile_service.admin_update_participant_name(
-                    participant_user_id=selected_participant_id,
-                    new_display_name=new_name,
-                )
-                st.success("Participant name updated.")
-                st.rerun()
-            except (ValidationError, NotFoundError) as exc:
-                st.error(str(exc))
+    render_form_field_label("Participant to rename")
+    selected_participant_label = st.selectbox(
+        "Participant to rename",
+        list(participant_options.keys()),
+        key="participant_rename_select",
+        label_visibility="collapsed",
+    )
+    selected_participant_id = participant_options[selected_participant_label]
+    selected_participant = participants_by_id[selected_participant_id]
+    current_name = participant_name(selected_participant)
+    render_form_field_label("New display name")
+    new_name = st.text_input(
+        "New display name",
+        value=current_name,
+        key="participant_rename_input",
+        label_visibility="collapsed",
+    )
+    if st.button("Save participant name", width="stretch", key="participant_rename_save"):
+        try:
+            services.profile_service.admin_update_participant_name(
+                participant_user_id=selected_participant_id,
+                new_display_name=new_name,
+            )
+            st.success("Participant name updated.")
+            st.rerun()
+        except (ValidationError, NotFoundError) as exc:
+            st.error(str(exc))
 
     st.divider()
     st.subheader("Doubler troubleshooting")

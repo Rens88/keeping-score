@@ -11,7 +11,7 @@ from tournament_tracker.ui import render_stat_tiles
 st.set_page_config(page_title="My Profile", page_icon="👤", layout="wide")
 
 services = get_services()
-user = require_login(services)
+user = require_login(services, current_page="pages/06_My_Profile.py")
 render_sidebar(user)
 
 render_page_intro("My Profile", "Review your stats, update your details, and manage your password.")

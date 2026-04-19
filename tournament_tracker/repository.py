@@ -144,6 +144,37 @@ class SQLiteRepository:
             is_active=bool(row["is_active"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            account_origin=row["account_origin"] if "account_origin" in row.keys() else "legacy",
+            registration_questions_answered=(
+                int(row["registration_questions_answered"])
+                if "registration_questions_answered" in row.keys()
+                else 0
+            ),
+            registration_game_guesses_used=(
+                int(row["registration_game_guesses_used"])
+                if "registration_game_guesses_used" in row.keys()
+                else 0
+            ),
+            registration_game_completed=(
+                bool(row["registration_game_completed"])
+                if "registration_game_completed" in row.keys()
+                else False
+            ),
+            registration_game_incorrect_answers=(
+                int(row["registration_game_incorrect_answers"])
+                if "registration_game_incorrect_answers" in row.keys()
+                else 0
+            ),
+            registration_game_points=(
+                float(row["registration_game_points"])
+                if "registration_game_points" in row.keys()
+                else 0.0
+            ),
+            registration_game_completed_at=(
+                row["registration_game_completed_at"]
+                if "registration_game_completed_at" in row.keys()
+                else None
+            ),
         )
 
     @staticmethod
@@ -338,6 +369,13 @@ class SQLiteRepository:
                     u.email,
                     u.role,
                     u.is_active,
+                    u.account_origin,
+                    u.registration_questions_answered,
+                    u.registration_game_guesses_used,
+                    u.registration_game_completed,
+                    u.registration_game_incorrect_answers,
+                    u.registration_game_points,
+                    u.registration_game_completed_at,
                     pp.display_name,
                     pp.motto,
                     pp.photo_blob,
@@ -362,6 +400,13 @@ class SQLiteRepository:
             motto=row["motto"],
             photo_blob=row["photo_blob"],
             photo_mime_type=row["photo_mime_type"],
+            account_origin=row["account_origin"],
+            registration_questions_answered=int(row["registration_questions_answered"]),
+            registration_game_guesses_used=int(row["registration_game_guesses_used"]),
+            registration_game_completed=bool(row["registration_game_completed"]),
+            registration_game_incorrect_answers=int(row["registration_game_incorrect_answers"]),
+            registration_game_points=float(row["registration_game_points"]),
+            registration_game_completed_at=row["registration_game_completed_at"],
         )
 
     def list_participants(self) -> list[UserWithProfile]:
@@ -374,6 +419,13 @@ class SQLiteRepository:
                     u.email,
                     u.role,
                     u.is_active,
+                    u.account_origin,
+                    u.registration_questions_answered,
+                    u.registration_game_guesses_used,
+                    u.registration_game_completed,
+                    u.registration_game_incorrect_answers,
+                    u.registration_game_points,
+                    u.registration_game_completed_at,
                     pp.display_name,
                     pp.motto,
                     pp.photo_blob,
@@ -396,9 +448,65 @@ class SQLiteRepository:
                 motto=row["motto"],
                 photo_blob=row["photo_blob"],
                 photo_mime_type=row["photo_mime_type"],
+                account_origin=row["account_origin"],
+                registration_questions_answered=int(row["registration_questions_answered"]),
+                registration_game_guesses_used=int(row["registration_game_guesses_used"]),
+                registration_game_completed=bool(row["registration_game_completed"]),
+                registration_game_incorrect_answers=int(row["registration_game_incorrect_answers"]),
+                registration_game_points=float(row["registration_game_points"]),
+                registration_game_completed_at=row["registration_game_completed_at"],
             )
             for row in rows
         ]
+
+    def create_admin_managed_participant(
+        self,
+        *,
+        username: str,
+        email: Optional[str],
+        password_hash: str,
+        display_name: str,
+        motto: str,
+        created_by_admin_user_id: int,
+        now_iso: str,
+    ) -> User:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO users (
+                    username,
+                    email,
+                    password_hash,
+                    role,
+                    is_active,
+                    created_at,
+                    updated_at,
+                    account_origin,
+                    registration_questions_answered,
+                    registration_game_guesses_used,
+                    registration_game_completed,
+                    registration_game_incorrect_answers,
+                    registration_game_points,
+                    registration_game_completed_at
+                )
+                VALUES (?, ?, ?, 'participant', 1, ?, ?, 'admin_created', 0, 0, 0, 0, 0, NULL)
+                """,
+                (username, email, password_hash, now_iso, now_iso),
+            )
+            user_id = int(cursor.lastrowid)
+            conn.execute(
+                """
+                INSERT INTO participant_profiles
+                    (user_id, display_name, motto, photo_blob, photo_mime_type, created_at, updated_at)
+                VALUES (?, ?, ?, NULL, NULL, ?, ?)
+                """,
+                (user_id, display_name, motto, now_iso, now_iso),
+            )
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+
+        if not row:
+            raise RuntimeError("Admin-managed participant creation failed")
+        return self._row_to_user(row)
 
     def count_participant_users(self, user_ids: Iterable[int]) -> int:
         user_ids = list(user_ids)
@@ -519,8 +627,23 @@ class SQLiteRepository:
 
             cursor = conn.execute(
                 """
-                INSERT INTO users (username, email, password_hash, role, is_active, created_at, updated_at)
-                VALUES (?, ?, ?, 'participant', 1, ?, ?)
+                INSERT INTO users (
+                    username,
+                    email,
+                    password_hash,
+                    role,
+                    is_active,
+                    created_at,
+                    updated_at,
+                    account_origin,
+                    registration_questions_answered,
+                    registration_game_guesses_used,
+                    registration_game_completed,
+                    registration_game_incorrect_answers,
+                    registration_game_points,
+                    registration_game_completed_at
+                )
+                VALUES (?, ?, ?, 'participant', 1, ?, ?, 'invitation', 0, 0, 0, 0, 0, NULL)
                 """,
                 (username, email, password_hash, now_iso, now_iso),
             )
@@ -1014,6 +1137,8 @@ class SQLiteRepository:
                 u.id AS user_id,
                 u.username,
                 u.email,
+                u.registration_game_points,
+                u.registration_game_completed,
                 pp.display_name,
                 pp.motto,
                 pp.photo_blob,
@@ -1091,6 +1216,26 @@ class SQLiteRepository:
             ).fetchone()
         return self._row_to_user(row) if row else None
 
+    def get_app_setting(self, key: str) -> Optional[str]:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT setting_value FROM app_settings WHERE setting_key = ?",
+                (key,),
+            ).fetchone()
+        return str(row["setting_value"]) if row else None
+
+    def set_app_setting(self, *, key: str, value: str, updated_at: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO app_settings (setting_key, setting_value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(setting_key)
+                DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at
+                """,
+                (key, value, updated_at),
+            )
+
     def any_admin_exists(self) -> bool:
         return self.get_first_admin() is not None
 
@@ -1138,6 +1283,45 @@ class SQLiteRepository:
                 WHERE id = ?
                 """,
                 (password_hash, updated_at, user_id),
+            )
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return self._row_to_user(row) if row else None
+
+    def update_registration_game_progress(
+        self,
+        *,
+        user_id: int,
+        questions_answered: int,
+        guesses_used: int,
+        incorrect_answers: int,
+        completed: bool,
+        points: float,
+        completed_at: Optional[str],
+        updated_at: str,
+    ) -> Optional[User]:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE users
+                SET registration_questions_answered = ?,
+                    registration_game_guesses_used = ?,
+                    registration_game_incorrect_answers = ?,
+                    registration_game_completed = ?,
+                    registration_game_points = ?,
+                    registration_game_completed_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    questions_answered,
+                    guesses_used,
+                    incorrect_answers,
+                    1 if completed else 0,
+                    points,
+                    completed_at,
+                    updated_at,
+                    user_id,
+                ),
             )
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         return self._row_to_user(row) if row else None

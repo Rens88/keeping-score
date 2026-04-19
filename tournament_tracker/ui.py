@@ -3,11 +3,9 @@ from __future__ import annotations
 import base64
 from datetime import datetime
 from html import escape
-import json
 from typing import Optional
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from tournament_tracker.branding import render_html_block
 from tournament_tracker.models import LeaderboardRow
@@ -125,42 +123,6 @@ def render_stat_tiles(items: list[tuple[str, str]]) -> None:
         """
     )
     render_html_block("".join(tile_html))
-
-
-def render_copy_to_clipboard_button(label: str, text: str, key: str) -> None:
-    payload = json.dumps(text)
-    button_id = f"copy-btn-{escape(key)}"
-    status_id = f"copy-status-{escape(key)}"
-    components.html(
-        f"""
-<div style="margin: 0.35rem 0 0.2rem 0;">
-    <button
-        id="{button_id}"
-        onclick='navigator.clipboard.writeText({payload}).then(function() {{
-            document.getElementById("{status_id}").innerText = "Copied to clipboard.";
-        }}).catch(function() {{
-            document.getElementById("{status_id}").innerText = "Copy failed. Select the text manually.";
-        }});'
-        style="
-            width: 100%;
-            border: none;
-            border-radius: 12px;
-            padding: 0.75rem 1rem;
-            font-weight: 800;
-            color: white;
-            background: linear-gradient(180deg, #ea580c 0%, #c2410c 100%);
-            cursor: pointer;
-        "
-    >
-        {escape(label)}
-    </button>
-    <div id="{status_id}" style="padding-top: 0.45rem; font-size: 0.9rem; color: #625447;"></div>
-</div>
-        """,
-        height=92,
-    )
-
-
 def render_match_card(card: MatchCard) -> None:
     with st.container(border=True):
         status_label = STATUS_BADGE.get(card.status, card.status)

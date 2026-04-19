@@ -21,7 +21,7 @@ render_page_intro(
 
 if current_user:
     st.success("You are logged in.")
-    st.write("Use the sidebar to navigate between leaderboard, matches, and your profile.")
+    st.write("Use the sidebar to navigate between leaderboard, matches, your weekend info, and the mini game.")
 
     if current_user.role == "admin":
         st.divider()
@@ -34,6 +34,8 @@ if current_user:
                 st.switch_page("pages/08_Admin_Participants_Invitations.py")
             if st.button("Registration Game", width="stretch", key="home_admin_registration_game"):
                 st.switch_page("pages/12_Admin_Registration_Game.py")
+            if st.button("Mini Game", width="stretch", key="home_admin_minigame"):
+                st.switch_page("pages/16_Admin_Mini_Game.py")
             if st.button("Manage Schedule", width="stretch", key="home_admin_schedule"):
                 st.switch_page("pages/09_Admin_Schedule.py")
         with admin_col_2:
@@ -41,6 +43,16 @@ if current_user:
                 st.switch_page("pages/10_Admin_Results.py")
             if st.button("Backup & Restore", width="stretch", key="home_admin_backup"):
                 st.switch_page("pages/11_Admin_Backup_Restore.py")
+    else:
+        st.divider()
+        st.subheader("Weekend Quick Links")
+        participant_col_1, participant_col_2 = st.columns(2)
+        with participant_col_1:
+            if st.button("Weekend Info", width="stretch", key="home_weekend_info"):
+                st.switch_page("pages/14_Weekend_Info.py")
+        with participant_col_2:
+            if st.button("Mini Game", width="stretch", key="home_mini_game"):
+                st.switch_page("pages/15_Mini_Game.py")
 else:
     with st.container(border=True):
         st.subheader("Welcome")
@@ -55,6 +67,6 @@ else:
 
 st.divider()
 st.caption(
-    "MVP: head-to-head matches, admin-managed registration, secure login, leaderboard, the registration game, and one-time doubler mechanic."
+    "MVP: head-to-head matches, admin-managed registration, secure login, leaderboard, the registration game, Whack-a-mole, and the one-time doubler mechanic."
 )
 render_bottom_decoration()

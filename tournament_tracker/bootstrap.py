@@ -21,6 +21,7 @@ from tournament_tracker.services.auth_service import AuthService
 from tournament_tracker.services.backup_service import BackupService
 from tournament_tracker.services.invitation_service import InvitationService
 from tournament_tracker.services.match_service import MatchService
+from tournament_tracker.services.minigame_service import MiniGameService
 from tournament_tracker.services.profile_service import ProfileService
 from tournament_tracker.services.registration_service import RegistrationService
 from tournament_tracker.services.ranking_service import RankingService
@@ -37,6 +38,7 @@ class AppServices:
     ranking_service: RankingService
     profile_service: ProfileService
     registration_service: RegistrationService
+    minigame_service: MiniGameService
 
 
 def initialize_repository(config: AppConfig | None = None) -> tuple[AppConfig, SQLiteRepository]:
@@ -94,4 +96,37 @@ def get_services() -> AppServices:
         ranking_service=RankingService(repo),
         profile_service=ProfileService(repo),
         registration_service=RegistrationService(repo, config),
+        minigame_service=MiniGameService(repo),
     )
+
+
+def _rebuild_services_from_existing(services: object) -> AppServices:
+    config = getattr(services, "config")
+    repo = getattr(services, "repo")
+    return AppServices(
+        config=config,
+        repo=repo,
+        auth_service=getattr(services, "auth_service", AuthService(repo)),
+        backup_service=getattr(services, "backup_service", BackupService(repo)),
+        invitation_service=getattr(services, "invitation_service", InvitationService(repo)),
+        match_service=getattr(services, "match_service", MatchService(repo)),
+        ranking_service=getattr(services, "ranking_service", RankingService(repo)),
+        profile_service=getattr(services, "profile_service", ProfileService(repo)),
+        registration_service=getattr(services, "registration_service", RegistrationService(repo, config)),
+        minigame_service=MiniGameService(repo),
+    )
+
+
+def get_runtime_services() -> AppServices:
+    services = get_services()
+    if hasattr(services, "minigame_service"):
+        return services
+
+    clear_cached = getattr(get_services, "clear", None)
+    if callable(clear_cached):
+        clear_cached()
+        refreshed = get_services()
+        if hasattr(refreshed, "minigame_service"):
+            return refreshed
+
+    return _rebuild_services_from_existing(services)

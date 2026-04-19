@@ -46,12 +46,18 @@ class RankingService:
             for row in doubler_rows
         }
         participants = self.repo.list_participants()
+        minigame_awards = self.repo.list_minigame_award_rows()
 
         stats_by_user: dict[int, ParticipantStats] = {}
 
         for participant in participants:
             stats = stats_by_user.setdefault(participant.user_id, ParticipantStats(user_id=participant.user_id))
             stats.total_points = float(participant.registration_game_points)
+
+        for award_row in minigame_awards:
+            user_id = int(award_row["participant_user_id"])
+            stats = stats_by_user.setdefault(user_id, ParticipantStats(user_id=user_id))
+            stats.total_points += float(award_row["points_awarded"])
 
         for row in rows:
             user_id = int(row["participant_user_id"])

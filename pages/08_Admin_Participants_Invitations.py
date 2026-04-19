@@ -6,7 +6,6 @@ from tournament_tracker.branding import render_bottom_decoration, render_form_fi
 from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
-from tournament_tracker.ui import render_copy_to_clipboard_button
 
 st.set_page_config(page_title="Participants and Registration", page_icon="👥", layout="wide")
 
@@ -96,11 +95,9 @@ if isinstance(preview_message, str) and preview_message.strip():
     preview_title = str(st.session_state.get("registration_invitation_preview_title") or "Registration invitation")
     with st.container(border=True):
         st.subheader(preview_title)
-        st.caption("Copy this straight into WhatsApp, email, carrier pigeon, or your admin chat of choice.")
-        render_copy_to_clipboard_button(
-            "Copy registration invitation",
-            preview_message,
-            key="registration_invitation_preview",
+        st.caption(
+            "Copy this straight into WhatsApp, email, carrier pigeon, or your admin chat of choice. "
+            "Use the copy icon on the message block below, or select the text manually."
         )
         st.code(preview_message)
 

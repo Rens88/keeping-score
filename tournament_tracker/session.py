@@ -140,12 +140,22 @@ def render_main_navigation(user: Optional[User]) -> None:
         ]
     )
 
+    if user.role == "participant":
+        _render_navigation_rows(
+            [
+                ("🏡 Weekend Info", "pages/14_Weekend_Info.py", "top_nav_weekend_info"),
+                ("🔨 Mini Game", "pages/15_Mini_Game.py", "top_nav_mini_game"),
+            ],
+            row_size=2,
+        )
+
     if user.role == "admin":
         _render_navigation_rows(
             [
                 ("🛡️ Admin Home", "pages/07_Admin_Dashboard.py", "top_nav_admin_home"),
                 ("👥 Participants", "pages/08_Admin_Participants_Invitations.py", "top_nav_admin_participants"),
                 ("🧩 Registration Game", "pages/12_Admin_Registration_Game.py", "top_nav_admin_registration_game"),
+                ("🔨 Mini Game", "pages/16_Admin_Mini_Game.py", "top_nav_admin_mini_game"),
                 ("🗓️ Schedule", "pages/09_Admin_Schedule.py", "top_nav_admin_schedule"),
                 ("✅ Results", "pages/10_Admin_Results.py", "top_nav_admin_results"),
                 ("💾 Backup", "pages/11_Admin_Backup_Restore.py", "top_nav_admin_backup"),
@@ -195,6 +205,11 @@ def render_sidebar(user: Optional[User]) -> None:
                 st.switch_page("pages/05_Past_Matches.py")
             if st.button("My Profile", width="stretch", key="side_nav_profile"):
                 st.switch_page("pages/06_My_Profile.py")
+            if user and user.role == "participant":
+                if st.button("Weekend Info", width="stretch", key="side_nav_weekend_info"):
+                    st.switch_page("pages/14_Weekend_Info.py")
+                if st.button("Mini Game", width="stretch", key="side_nav_mini_game"):
+                    st.switch_page("pages/15_Mini_Game.py")
 
         if user and user.role == "admin":
             st.divider()
@@ -205,6 +220,8 @@ def render_sidebar(user: Optional[User]) -> None:
                 st.switch_page("pages/08_Admin_Participants_Invitations.py")
             if st.button("Registration Game", width="stretch", key="side_nav_admin_registration_game"):
                 st.switch_page("pages/12_Admin_Registration_Game.py")
+            if st.button("Mini Game", width="stretch", key="side_nav_admin_mini_game"):
+                st.switch_page("pages/16_Admin_Mini_Game.py")
             if st.button("Manage Schedule", width="stretch", key="side_nav_admin_schedule"):
                 st.switch_page("pages/09_Admin_Schedule.py")
             if st.button("Enter/Edit Results", width="stretch", key="side_nav_admin_results"):

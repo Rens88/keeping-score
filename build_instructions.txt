@@ -195,3 +195,32 @@ Requested Changes (summarized)
 31. Streamlit Cloud import hardening:
 - Fix the online import failure around `app.py -> tournament_tracker.session` by removing an unnecessary runtime import of `AppServices` from `tournament_tracker.bootstrap`.
 - Keep the bootstrap import available only for type checking, reducing the risk of fragile import chains during Streamlit Cloud startup.
+
+32. Cloud leaderboard schema-compatibility fix:
+- Harden repository startup so registration-game columns and `app_settings` are re-created idempotently even when a deployed database is missing them or has drifted away from the expected migration state.
+- Make participant/profile queries fall back to safe legacy defaults for registration-game fields so leaderboard and participant pages can still load against older Cloud databases.
+
+33. Windows LAN launcher port-availability refinement:
+- Improve the verbose Windows CMD LAN launcher so it checks whether the chosen Streamlit port is already in use before starting.
+- If the default port `8501` is occupied, automatically fall back to the next free nearby port and print the adjusted LAN URL guidance.
+- If the user explicitly set `STREAMLIT_SERVER_PORT` and that port is busy, fail early with a clear instruction instead of letting Streamlit abort later.
+- Update README LAN notes to mention the new automatic Windows `.bat` fallback behavior.
+
+34. Streamlit deprecation cleanup for invitation preview:
+- Remove the deprecated `st.components.v1.html` usage from the registration invitation preview flow.
+- Keep the invitation message visible in a native Streamlit code block and instruct the admin to use the built-in copy icon or manual text selection instead of the old custom HTML/JS copy button.
+
+35. Whack-a-mole planning and post-registration reward/info follow-up:
+- Work out a concrete integration plan for a weekend-long `Whack-a-mole` minigame, including where players find it, how scores and the minigame leaderboard are tracked, how the admin sets the deadline, and which admin controls are needed for awarding leaderboard points later.
+- Add a post-registration-game reward moment where `assets/reward_registration_game.png` is shown to participants who correctly guessed the location.
+- Add a gated info page for successful registrants with the accommodation link, the supplied WieBetaaltWat link, and practical stay details (towels, bed linen, Friday 14:00 check-in, Saturday 15:00 check-out).
+
+36. Whack-a-mole implementation and weekend-info rollout:
+- Implement a simple embedded `Whack-a-mole` minigame with persistent run storage, a best-score minigame leaderboard, and automatic inclusion of admin-awarded minigame points in the main leaderboard total.
+- Add a dedicated admin minigame page to configure active state, opening time, deadline, and comma-separated award scheme, plus a post-deadline action to apply or refresh weekend points from the current minigame standings.
+- Add participant navigation and home links for the minigame and a new gated `Weekend Info` page.
+- Show `assets/reward_registration_game.png` on the registration-game success screen, add a direct button to the new info page, and use the same shared weekend-info content for accommodation, WieBetaaltWat, and practical stay details.
+
+37. Cached AppServices compatibility fix:
+- Harden the new minigame/info pages against older Streamlit `cache_resource` entries by adding a runtime service loader that refreshes or rebuilds legacy `AppServices` objects missing the new `minigame_service`.
+- Route the new weekend info and minigame pages through that runtime-safe bootstrap helper so the app can recover without manual cache clearing.

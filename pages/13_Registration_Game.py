@@ -7,12 +7,9 @@ from tournament_tracker.bootstrap import get_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import render_sidebar, require_login
 from tournament_tracker.ui import render_stat_tiles
+from tournament_tracker.weekend_info import ACCOMMODATION_LINK, REWARD_IMAGE_PATH
 
 TOTAL_QUESTIONS = 10
-ACCOMMODATION_LINK = (
-    "https://www.vakantieboerderij.nl/nl/vakantieboerderij/"
-    "Noord-Brabant-14-personen-Erp/1779"
-)
 
 st.set_page_config(page_title="Registration Game", page_icon="🧩", layout="centered")
 
@@ -60,10 +57,14 @@ if user.registration_game_completed:
     st.session_state["registration_game_celebration_user_id"] = user.id
     with st.container(border=True):
         st.subheader("Gefeliciteerd!")
+        if REWARD_IMAGE_PATH.exists():
+            st.image(str(REWARD_IMAGE_PATH), use_container_width=True)
         st.success("Je hebt de bestemming correct geraden.")
         st.write(f"Je hebt **{points_awarded} punten** verdiend.")
         st.write("De bestemming was `Erp`.")
         st.link_button("Open de accommodatie", ACCOMMODATION_LINK, width="stretch")
+        if st.button("Open weekend info", width="stretch"):
+            st.switch_page("pages/14_Weekend_Info.py")
         if st.button("Ga naar de homepagina", width="stretch", type="primary"):
             st.switch_page("app.py")
     render_bottom_decoration()

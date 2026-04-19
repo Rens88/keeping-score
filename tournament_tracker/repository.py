@@ -16,6 +16,8 @@ from tournament_tracker.models import (
     InvitationDisplay,
     Match,
     MatchResult,
+    MiniGameAward,
+    MiniGameRun,
     ParticipantProfile,
     User,
     UserWithProfile,
@@ -38,6 +40,7 @@ class SQLiteRepository:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._table_columns_cache: dict[str, set[str]] = {}
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -82,6 +85,167 @@ class SQLiteRepository:
                     "INSERT INTO schema_migrations (version) VALUES (?)",
                     (version,),
                 )
+
+            self._ensure_registration_schema(conn)
+
+        self._table_columns_cache.clear()
+
+    @staticmethod
+    def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        return {str(row["name"]) for row in rows}
+
+    def _ensure_registration_schema(self, conn: sqlite3.Connection) -> None:
+        user_columns = self._table_columns(conn, "users")
+        registration_user_columns = (
+            ("account_origin", "TEXT NOT NULL DEFAULT 'legacy'"),
+            ("registration_questions_answered", "INTEGER NOT NULL DEFAULT 0"),
+            ("registration_game_guesses_used", "INTEGER NOT NULL DEFAULT 0"),
+            ("registration_game_completed", "INTEGER NOT NULL DEFAULT 0"),
+            ("registration_game_incorrect_answers", "INTEGER NOT NULL DEFAULT 0"),
+            ("registration_game_points", "REAL NOT NULL DEFAULT 0"),
+            ("registration_game_completed_at", "TEXT"),
+        )
+
+        for column_name, definition in registration_user_columns:
+            if column_name not in user_columns:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {column_name} {definition}")
+                user_columns.add(column_name)
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO app_settings (setting_key, setting_value, updated_at)
+            VALUES ('registration_game_active', 'false', datetime('now'))
+            """
+        )
+        minigame_setting_defaults = (
+            ("whack_a_mole_enabled", "false"),
+            ("whack_a_mole_opens_at", ""),
+            ("whack_a_mole_deadline_at", ""),
+            ("whack_a_mole_award_scheme", "5,3,1"),
+            ("whack_a_mole_awards_applied_at", ""),
+        )
+        conn.executemany(
+            """
+            INSERT OR IGNORE INTO app_settings (setting_key, setting_value, updated_at)
+            VALUES (?, ?, datetime('now'))
+            """,
+            minigame_setting_defaults,
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS minigame_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_slug TEXT NOT NULL,
+                participant_user_id INTEGER NOT NULL,
+                score INTEGER NOT NULL,
+                duration_seconds INTEGER NOT NULL,
+                played_at TEXT NOT NULL,
+                metadata_json TEXT,
+                FOREIGN KEY (participant_user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS minigame_awards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_slug TEXT NOT NULL,
+                participant_user_id INTEGER NOT NULL,
+                placement INTEGER NOT NULL,
+                points_awarded REAL NOT NULL,
+                awarded_at TEXT NOT NULL,
+                awarded_by_user_id INTEGER NOT NULL,
+                FOREIGN KEY (participant_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (awarded_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            UPDATE users
+            SET registration_game_completed = 1,
+                registration_game_points = 0,
+                account_origin = 'legacy'
+            WHERE role = 'participant'
+              AND account_origin = 'legacy'
+              AND registration_game_completed = 0
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_users_registration_completed
+            ON users(registration_game_completed)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_minigame_runs_lookup
+            ON minigame_runs(game_slug, participant_user_id, score DESC, played_at ASC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_minigame_awards_lookup
+            ON minigame_awards(game_slug, participant_user_id)
+            """
+        )
+
+    def _get_table_columns_cached(self, table_name: str) -> set[str]:
+        if table_name not in self._table_columns_cache:
+            with self.connection() as conn:
+                self._table_columns_cache[table_name] = self._table_columns(conn, table_name)
+        return self._table_columns_cache[table_name]
+
+    def _user_registration_projection(self, alias: str = "u") -> str:
+        user_columns = self._get_table_columns_cached("users")
+        default_completed = "1"
+        projection_map = {
+            "account_origin": f"{alias}.account_origin" if "account_origin" in user_columns else "'legacy'",
+            "registration_questions_answered": (
+                f"{alias}.registration_questions_answered"
+                if "registration_questions_answered" in user_columns
+                else "0"
+            ),
+            "registration_game_guesses_used": (
+                f"{alias}.registration_game_guesses_used"
+                if "registration_game_guesses_used" in user_columns
+                else "0"
+            ),
+            "registration_game_completed": (
+                f"{alias}.registration_game_completed"
+                if "registration_game_completed" in user_columns
+                else default_completed
+            ),
+            "registration_game_incorrect_answers": (
+                f"{alias}.registration_game_incorrect_answers"
+                if "registration_game_incorrect_answers" in user_columns
+                else "0"
+            ),
+            "registration_game_points": (
+                f"{alias}.registration_game_points"
+                if "registration_game_points" in user_columns
+                else "0"
+            ),
+            "registration_game_completed_at": (
+                f"{alias}.registration_game_completed_at"
+                if "registration_game_completed_at" in user_columns
+                else "NULL"
+            ),
+        }
+        return ",\n                    ".join(
+            f"{expression} AS {column_name}"
+            for column_name, expression in projection_map.items()
+        )
 
     def export_database_bytes(self) -> bytes:
         if not self.db_path.exists():
@@ -236,6 +400,30 @@ class SQLiteRepository:
             activated_by_user_id=row["activated_by_user_id"],
         )
 
+    @staticmethod
+    def _row_to_minigame_run(row: sqlite3.Row) -> MiniGameRun:
+        return MiniGameRun(
+            id=row["id"],
+            game_slug=row["game_slug"],
+            participant_user_id=row["participant_user_id"],
+            score=int(row["score"]),
+            duration_seconds=int(row["duration_seconds"]),
+            played_at=row["played_at"],
+            metadata_json=row["metadata_json"],
+        )
+
+    @staticmethod
+    def _row_to_minigame_award(row: sqlite3.Row) -> MiniGameAward:
+        return MiniGameAward(
+            id=row["id"],
+            game_slug=row["game_slug"],
+            participant_user_id=row["participant_user_id"],
+            placement=int(row["placement"]),
+            points_awarded=float(row["points_awarded"]),
+            awarded_at=row["awarded_at"],
+            awarded_by_user_id=int(row["awarded_by_user_id"]),
+        )
+
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         with self.connection() as conn:
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -360,22 +548,17 @@ class SQLiteRepository:
         return self._row_to_profile(row) if row else None
 
     def get_user_with_profile(self, user_id: int) -> Optional[UserWithProfile]:
+        registration_projection = self._user_registration_projection("u")
         with self.connection() as conn:
             row = conn.execute(
-                """
+                f"""
                 SELECT
                     u.id AS user_id,
                     u.username,
                     u.email,
                     u.role,
                     u.is_active,
-                    u.account_origin,
-                    u.registration_questions_answered,
-                    u.registration_game_guesses_used,
-                    u.registration_game_completed,
-                    u.registration_game_incorrect_answers,
-                    u.registration_game_points,
-                    u.registration_game_completed_at,
+                    {registration_projection},
                     pp.display_name,
                     pp.motto,
                     pp.photo_blob,
@@ -410,22 +593,17 @@ class SQLiteRepository:
         )
 
     def list_participants(self) -> list[UserWithProfile]:
+        registration_projection = self._user_registration_projection("u")
         with self.connection() as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT
                     u.id AS user_id,
                     u.username,
                     u.email,
                     u.role,
                     u.is_active,
-                    u.account_origin,
-                    u.registration_questions_answered,
-                    u.registration_game_guesses_used,
-                    u.registration_game_completed,
-                    u.registration_game_incorrect_answers,
-                    u.registration_game_points,
-                    u.registration_game_completed_at,
+                    {registration_projection},
                     pp.display_name,
                     pp.motto,
                     pp.photo_blob,
@@ -1132,13 +1310,13 @@ class SQLiteRepository:
         if not user_ids:
             return {}
         placeholders = ",".join(["?"] * len(user_ids))
+        registration_projection = self._user_registration_projection("u")
         sql = f"""
             SELECT
                 u.id AS user_id,
                 u.username,
                 u.email,
-                u.registration_game_points,
-                u.registration_game_completed,
+                {registration_projection},
                 pp.display_name,
                 pp.motto,
                 pp.photo_blob,
@@ -1208,6 +1386,144 @@ class SQLiteRepository:
                 (limit,),
             ).fetchall()
         return [ActivityItem(timestamp=row["created_at"], message=row["message"]) for row in rows]
+
+    def create_minigame_run(
+        self,
+        *,
+        game_slug: str,
+        participant_user_id: int,
+        score: int,
+        duration_seconds: int,
+        played_at: str,
+        metadata_json: Optional[str],
+    ) -> MiniGameRun:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO minigame_runs (
+                    game_slug,
+                    participant_user_id,
+                    score,
+                    duration_seconds,
+                    played_at,
+                    metadata_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    game_slug,
+                    participant_user_id,
+                    score,
+                    duration_seconds,
+                    played_at,
+                    metadata_json,
+                ),
+            )
+            run_id = int(cursor.lastrowid)
+            row = conn.execute(
+                "SELECT * FROM minigame_runs WHERE id = ?",
+                (run_id,),
+            ).fetchone()
+
+        if not row:
+            raise RuntimeError("Failed to create minigame run")
+        return self._row_to_minigame_run(row)
+
+    def list_minigame_runs(self, game_slug: str) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    mr.id,
+                    mr.game_slug,
+                    mr.participant_user_id,
+                    mr.score,
+                    mr.duration_seconds,
+                    mr.played_at,
+                    mr.metadata_json,
+                    pp.display_name,
+                    pp.motto,
+                    pp.photo_blob,
+                    pp.photo_mime_type,
+                    u.username,
+                    u.email
+                FROM minigame_runs mr
+                JOIN users u ON u.id = mr.participant_user_id
+                LEFT JOIN participant_profiles pp ON pp.user_id = mr.participant_user_id
+                WHERE mr.game_slug = ?
+                ORDER BY mr.score DESC, mr.played_at ASC, mr.id ASC
+                """,
+                (game_slug,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def replace_minigame_awards(
+        self,
+        *,
+        game_slug: str,
+        awards: list[tuple[int, int, float, str, int]],
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM minigame_awards WHERE game_slug = ?", (game_slug,))
+            conn.executemany(
+                """
+                INSERT INTO minigame_awards (
+                    game_slug,
+                    participant_user_id,
+                    placement,
+                    points_awarded,
+                    awarded_at,
+                    awarded_by_user_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        game_slug,
+                        participant_user_id,
+                        placement,
+                        points_awarded,
+                        awarded_at,
+                        awarded_by_user_id,
+                    )
+                    for participant_user_id, placement, points_awarded, awarded_at, awarded_by_user_id in awards
+                ],
+            )
+
+    def list_minigame_awards(self, game_slug: Optional[str] = None) -> list[MiniGameAward]:
+        where_sql = ""
+        params: tuple[Any, ...] = ()
+        if game_slug:
+            where_sql = "WHERE game_slug = ?"
+            params = (game_slug,)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM minigame_awards
+                {where_sql}
+                ORDER BY game_slug, placement, awarded_at, id
+                """,
+                params,
+            ).fetchall()
+        return [self._row_to_minigame_award(row) for row in rows]
+
+    def list_minigame_award_rows(self) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    participant_user_id,
+                    game_slug,
+                    placement,
+                    points_awarded,
+                    awarded_at
+                FROM minigame_awards
+                ORDER BY awarded_at ASC, id ASC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def get_first_admin(self) -> Optional[User]:
         with self.connection() as conn:

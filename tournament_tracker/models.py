@@ -138,6 +138,51 @@ class LeaderboardRow:
 
 
 @dataclass(slots=True)
+class MiniGameRun:
+    id: int
+    game_slug: str
+    participant_user_id: int
+    score: int
+    duration_seconds: int
+    played_at: str
+    metadata_json: Optional[str]
+
+
+@dataclass(slots=True)
+class MiniGameAward:
+    id: int
+    game_slug: str
+    participant_user_id: int
+    placement: int
+    points_awarded: float
+    awarded_at: str
+    awarded_by_user_id: int
+
+
+@dataclass(slots=True)
+class MiniGameLeaderboardRow:
+    rank: int
+    user_id: int
+    display_name: str
+    motto: str
+    photo_blob: Optional[bytes]
+    photo_mime_type: Optional[str]
+    best_score: int
+    attempts: int
+    best_played_at: str
+    awarded_points: float = 0.0
+
+
+@dataclass(slots=True)
+class MiniGameConfig:
+    enabled: bool
+    opens_at: Optional[str]
+    deadline_at: Optional[str]
+    award_scheme: tuple[int, ...]
+    awards_applied_at: Optional[str]
+
+
+@dataclass(slots=True)
 class UserWithProfile:
     user_id: int
     username: Optional[str]

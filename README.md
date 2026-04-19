@@ -124,7 +124,7 @@ bash scripts/run_lan.sh
 :: Windows Command Prompt (CMD)
 scripts\run_lan.bat
 ```
-The `.bat` launcher is verbose and always pauses before the window closes.
+The `.bat` launcher is verbose, always pauses before the window closes, and automatically tries the next free port if the default `8501` is already in use.
 
 Or explicit command:
 ```bash
@@ -157,6 +157,7 @@ Important:
 - Guest Wi-Fi sometimes isolates devices (client isolation)
 - Ensure app listens on `0.0.0.0` (not only `127.0.0.1`)
 - Port can be changed with `--server.port` or `STREAMLIT_SERVER_PORT`
+- The Windows `.bat` launcher will automatically try a nearby free port when the default `8501` is already occupied
 - Disable VPN on both laptop and phone while testing
 - Turn off mobile data on the phone so requests stay on Wi-Fi
 - If `localhost` works on the laptop but phone access fails, test with `python -m http.server 9999` to confirm whether the problem is app-specific

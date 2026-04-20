@@ -3,7 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import render_sidebar, require_login
 from tournament_tracker.ui import render_stat_tiles
@@ -13,7 +13,7 @@ TOTAL_QUESTIONS = 10
 
 st.set_page_config(page_title="Registration Game", page_icon="🧩", layout="centered")
 
-services = get_services()
+services = get_runtime_services()
 user = require_login(
     services,
     current_page="pages/13_Registration_Game.py",
@@ -24,8 +24,7 @@ if not services.registration_service.participant_requires_registration_gate(user
     if celebration_user_id != user.id:
         st.switch_page("app.py")
         st.stop()
-
-render_sidebar(user)
+render_sidebar(user, current_page="pages/13_Registration_Game.py")
 
 if not services.registration_service.is_registration_game_active() and not user.registration_game_completed:
     st.switch_page("pages/12_And_Now_We_Wait.py")
@@ -33,7 +32,7 @@ if not services.registration_service.is_registration_game_active() and not user.
 
 render_page_intro(
     "Registration Game",
-    "Beantwoord de vraag, lees de hint en raad daarna meteen de bestemming.",
+    "Beantwoord een vraag, lees de hint en probeer na elke vraag de bestemming te raden.",
 )
 
 question_feedback = st.session_state.pop("registration_game_question_feedback", None)
@@ -42,25 +41,28 @@ guess_feedback = st.session_state.pop("registration_game_guess_feedback", None)
 user = services.repo.get_user_by_id(user.id) or user
 questions = services.registration_service.list_questions()
 unlocked_hints = services.registration_service.get_unlocked_hints(user)
-current_score = services.registration_service.calculate_score(user.registration_game_incorrect_answers)
+current_score = services.registration_service.calculate_points_so_far(
+    user.registration_questions_answered,
+    user.registration_game_incorrect_answers,
+)
 
 render_stat_tiles(
     [
         ("Beantwoorde vragen", f"{user.registration_questions_answered}/{TOTAL_QUESTIONS}"),
         ("Fouten", str(user.registration_game_incorrect_answers)),
-        ("Huidige score", str(current_score)),
+        ("Punten tot nu", f"{current_score:.1f}"),
     ]
 )
 
 if user.registration_game_completed:
-    points_awarded = int(round(user.registration_game_points))
+    points_awarded = float(user.registration_game_points)
     st.session_state["registration_game_celebration_user_id"] = user.id
     with st.container(border=True):
         st.subheader("Gefeliciteerd!")
         if REWARD_IMAGE_PATH.exists():
             st.image(str(REWARD_IMAGE_PATH), use_container_width=True)
         st.success("Je hebt de bestemming correct geraden.")
-        st.write(f"Je hebt **{points_awarded} punten** verdiend.")
+        st.write(f"Je hebt **{points_awarded:.1f} punten** verdiend.")
         st.write("De bestemming was `Erp`.")
         st.link_button("Open de accommodatie", ACCOMMODATION_LINK, width="stretch")
         if st.button("Open weekend info", width="stretch"):
@@ -69,6 +71,20 @@ if user.registration_game_completed:
             st.switch_page("app.py")
     render_bottom_decoration()
     st.stop()
+
+with st.container(border=True):
+    st.subheader("Hoe werkt het?")
+    st.write(
+        "Het doel is om zo snel mogelijk de **bestemming** te raden. Na elke multiple choice vraag krijg je een hint en "
+        "een kans om je gok in te vullen."
+    )
+    st.write(
+        "Elke goed beantwoorde vraag levert **1.0 punt** op. Zodra je `Erp` goed raadt, tellen alle resterende vragen meteen mee "
+        "als goed voor **1.5 punt per stuk**."
+    )
+    st.write(
+        "Speel dus slim, raad op tijd, en hou de locatie graag nog even voor jezelf zodat je de anderen geen gratis voordeel geeft."
+    )
 
 if isinstance(question_feedback, dict):
     with st.container(border=True):

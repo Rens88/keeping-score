@@ -138,6 +138,12 @@ class SQLiteRepository:
             VALUES ('registration_game_active', 'false', datetime('now'))
             """
         )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO app_settings (setting_key, setting_value, updated_at)
+            VALUES ('registration_game_opens_at', '', datetime('now'))
+            """
+        )
         minigame_setting_defaults = (
             ("whack_a_mole_enabled", "false"),
             ("whack_a_mole_opens_at", ""),

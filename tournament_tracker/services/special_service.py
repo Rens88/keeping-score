@@ -19,18 +19,24 @@ from tournament_tracker.services.ranking_service import POINTS, RankingService
 
 SPECIAL_DOUBLER = "doubler"
 SPECIAL_DOUBLE_OR_NOTHING = "double_or_nothing"
+SPECIAL_KING_OF_THE_HILL = "king_of_the_hill"
+SPECIAL_WINNER_TAKES_ALL = "winner_takes_it_all"
 SPECIAL_CATCH_UP = "catch_up_mode"
 SPECIAL_WHEEL = "wheel_of_fortune"
 
 SPECIAL_KEYS = (
     SPECIAL_DOUBLER,
     SPECIAL_DOUBLE_OR_NOTHING,
+    SPECIAL_KING_OF_THE_HILL,
+    SPECIAL_WINNER_TAKES_ALL,
     SPECIAL_CATCH_UP,
     SPECIAL_WHEEL,
 )
 MANUAL_MATCH_SPECIAL_KEYS = (
     SPECIAL_DOUBLER,
     SPECIAL_DOUBLE_OR_NOTHING,
+    SPECIAL_KING_OF_THE_HILL,
+    SPECIAL_WINNER_TAKES_ALL,
     SPECIAL_WHEEL,
 )
 MATCH_RELATED_AWARD_SOURCE_TYPES = (
@@ -41,6 +47,9 @@ MATCH_RELATED_AWARD_SOURCE_TYPES = (
 SPECIAL_OVERRIDE_PREFIX = "special_override:"
 WHEEL_MULTIPLIERS = (0.1, 0.5, 1.2, 1.5, 2.0, 3.0)
 DEFAULT_CATCH_UP_THRESHOLD = 15.0
+KING_OF_THE_HILL_WIN_BONUS = 2.0
+WINNER_TAKES_ALL_WIN_POINTS = 5.0
+WINNER_TAKES_ALL_LOSS_POINTS = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +124,10 @@ class SpecialService:
             return "⚡x2"
         if special_key == SPECIAL_DOUBLE_OR_NOTHING:
             return "🎲2"
+        if special_key == SPECIAL_KING_OF_THE_HILL:
+            return "👑+2"
+        if special_key == SPECIAL_WINNER_TAKES_ALL:
+            return "👑5-0"
         if special_key == SPECIAL_CATCH_UP:
             return "🪂x2"
         if special_key == SPECIAL_WHEEL:
@@ -134,6 +147,8 @@ class SpecialService:
         return {
             SPECIAL_DOUBLER: "Doubler",
             SPECIAL_DOUBLE_OR_NOTHING: "Double-or-nothing",
+            SPECIAL_KING_OF_THE_HILL: "King of the Hill",
+            SPECIAL_WINNER_TAKES_ALL: "The winner takes it all",
             SPECIAL_CATCH_UP: "Catch-up mode",
             SPECIAL_WHEEL: "Wheel of Fortune",
         }.get(special_key, special_key.replace("_", " ").title())
@@ -187,6 +202,16 @@ class SpecialService:
             self.repo.delete_app_setting(setting_key)
         else:
             self.repo.set_app_setting(key=setting_key, value=clean_mode, updated_at=now_iso)
+            if special_key == SPECIAL_KING_OF_THE_HILL and clean_mode == "on":
+                for (other_user_id, other_special_key), other_mode in self.list_special_override_modes().items():
+                    if (
+                        other_special_key == SPECIAL_KING_OF_THE_HILL
+                        and other_user_id != participant_user_id
+                        and other_mode == "on"
+                    ):
+                        self.repo.delete_app_setting(
+                            self._override_setting_key(other_user_id, SPECIAL_KING_OF_THE_HILL)
+                        )
 
         if clean_mode == "off":
             matches_by_id = {match.id: match for match in self.repo.list_matches()}
@@ -230,6 +255,20 @@ class SpecialService:
                 icon=self.badge_for_special(SPECIAL_DOUBLE_OR_NOTHING),
                 summary="Links two of your matches together and doubles both scores if the second one is a win.",
                 unlock_rule="Unlocked after your first win. You can only hold one copy and use it once.",
+            ),
+            SpecialDefinition(
+                key=SPECIAL_KING_OF_THE_HILL,
+                title="King of the Hill",
+                icon=self.badge_for_special(SPECIAL_KING_OF_THE_HILL),
+                summary="As long as you hold first place, you can tag one match so a win earns 2 extra performance points.",
+                unlock_rule="Only the current leader can hold it, and it transfers when someone else takes over first place unless it is already active in a live match.",
+            ),
+            SpecialDefinition(
+                key=SPECIAL_WINNER_TAKES_ALL,
+                title="The winner takes it all",
+                icon=self.badge_for_special(SPECIAL_WINNER_TAKES_ALL),
+                summary="Turns a non-draw into a 5-0 scoring split: the winners get 5 points and the losers get 0.",
+                unlock_rule="Unlocked the first time you reach first place. You can only hold one copy and use it once.",
             ),
             SpecialDefinition(
                 key=SPECIAL_CATCH_UP,
@@ -296,6 +335,24 @@ class SpecialService:
         lowest_total = min(totals.values())
         return {user_id for user_id, total in totals.items() if abs(total - lowest_total) < 1e-9}
 
+    def get_current_first_place_user_ids(self) -> set[int]:
+        totals = self._current_totals()
+        if not totals:
+            return set()
+        highest_total = max(totals.values())
+        lowest_total = min(totals.values())
+        if abs(highest_total - lowest_total) < 1e-9:
+            return set()
+        return {user_id for user_id, total in totals.items() if abs(total - highest_total) < 1e-9}
+
+    def get_current_king_of_the_hill_holder_user_id(self) -> Optional[int]:
+        leaderboard = self.ranking_service.compute_leaderboard()
+        if not leaderboard:
+            return None
+        if len(leaderboard) > 1 and leaderboard[1].rank == leaderboard[0].rank:
+            return None
+        return leaderboard[0].user_id
+
     def get_current_catch_up_user_ids(self) -> set[int]:
         totals = self._current_totals()
         if not totals:
@@ -329,6 +386,89 @@ class SpecialService:
 
         return {key: tuple(values) for key, values in icons.items()}
 
+    @staticmethod
+    def _match_has_winner_takes_all_activation(
+        *,
+        match_activations: list[MatchSpecialActivation],
+        outcome: str,
+    ) -> bool:
+        if outcome == "draw":
+            return False
+        return any(
+            activation.special_key == SPECIAL_WINNER_TAKES_ALL
+            for activation in match_activations
+        )
+
+    @staticmethod
+    def _match_has_special_for_user(
+        *,
+        match_activations_for_user: list[MatchSpecialActivation],
+        special_key: str,
+    ) -> bool:
+        return any(activation.special_key == special_key for activation in match_activations_for_user)
+
+    @staticmethod
+    def _base_points_for_match_outcome(
+        *,
+        player_outcome: str,
+        king_of_the_hill_active: bool,
+        winner_takes_all_active: bool,
+    ) -> float:
+        if winner_takes_all_active:
+            if player_outcome == "win":
+                points = WINNER_TAKES_ALL_WIN_POINTS
+                if king_of_the_hill_active:
+                    points += KING_OF_THE_HILL_WIN_BONUS
+                return points
+            if player_outcome == "loss":
+                return WINNER_TAKES_ALL_LOSS_POINTS
+        points = POINTS[player_outcome]
+        if king_of_the_hill_active and player_outcome == "win":
+            points += KING_OF_THE_HILL_WIN_BONUS
+        return points
+
+    def _cleanup_king_of_the_hill_activations(
+        self,
+        *,
+        matches_by_id: dict[int, Match],
+        holder_user_id: Optional[int],
+    ) -> None:
+        for activation in self.repo.list_match_special_activations(special_key=SPECIAL_KING_OF_THE_HILL):
+            match = matches_by_id.get(activation.match_id)
+            if not match or match.status == "completed":
+                continue
+            if match.status == "live":
+                continue
+            if holder_user_id is not None and activation.participant_user_id == holder_user_id:
+                continue
+            self.repo.delete_match_special_activation(activation.id)
+
+    def _get_king_of_the_hill_holder_user_id(
+        self,
+        *,
+        matches_by_id: dict[int, Match],
+        override_modes: dict[tuple[int, str], str],
+    ) -> Optional[int]:
+        live_holder_candidates: list[tuple[str, int, int]] = []
+        for activation in self.repo.list_match_special_activations(special_key=SPECIAL_KING_OF_THE_HILL):
+            match = matches_by_id.get(activation.match_id)
+            if not match or match.status != "live":
+                continue
+            live_holder_candidates.append((activation.activated_at, activation.id, activation.participant_user_id))
+        if live_holder_candidates:
+            live_holder_candidates.sort()
+            return int(live_holder_candidates[0][2])
+
+        forced_holders = sorted(
+            user_id
+            for (user_id, special_key), mode in override_modes.items()
+            if special_key == SPECIAL_KING_OF_THE_HILL and mode == "on"
+        )
+        if forced_holders:
+            return int(forced_holders[0])
+
+        return self.get_current_king_of_the_hill_holder_user_id()
+
     def get_completed_match_point_map(self) -> dict[tuple[int, int], float]:
         totals = {participant.user_id: 0.0 for participant in self.repo.list_participants()}
         for award in self.repo.list_competition_point_award_rows():
@@ -349,14 +489,18 @@ class SpecialService:
 
         activations_by_match_and_user: dict[tuple[int, int], list[MatchSpecialActivation]] = {}
         activations_by_user: dict[int, list[MatchSpecialActivation]] = {}
+        activations_by_match: dict[int, list[MatchSpecialActivation]] = {}
         for activation in activations:
             key = (activation.match_id, activation.participant_user_id)
             activations_by_match_and_user.setdefault(key, []).append(activation)
             activations_by_user.setdefault(activation.participant_user_id, []).append(activation)
+            activations_by_match.setdefault(activation.match_id, []).append(activation)
 
         for activation_list in activations_by_match_and_user.values():
             activation_list.sort(key=self._activation_sort_key)
         for activation_list in activations_by_user.values():
+            activation_list.sort(key=self._activation_sort_key)
+        for activation_list in activations_by_match.values():
             activation_list.sort(key=self._activation_sort_key)
 
         point_map: dict[tuple[int, int], float] = {}
@@ -366,6 +510,10 @@ class SpecialService:
         for match_row in completed_match_rows:
             match_id = int(match_row["match_id"])
             outcome = str(match_row["outcome"])
+            winner_takes_all_active = self._match_has_winner_takes_all_activation(
+                match_activations=activations_by_match.get(match_id, []),
+                outcome=outcome,
+            )
 
             leader_total = max(totals.values()) if totals else 0.0
             catch_up_users = {
@@ -378,7 +526,15 @@ class SpecialService:
                 user_id = int(participant_row["user_id"])
                 side_number = int(participant_row["side_number"])
                 player_outcome = self._participant_outcome(outcome, side_number)
-                base_points = POINTS[player_outcome]
+                king_of_the_hill_active = self._match_has_special_for_user(
+                    match_activations_for_user=activations_by_match_and_user.get((match_id, user_id), []),
+                    special_key=SPECIAL_KING_OF_THE_HILL,
+                )
+                performance_base_points = self._base_points_for_match_outcome(
+                    player_outcome=player_outcome,
+                    king_of_the_hill_active=king_of_the_hill_active,
+                    winner_takes_all_active=winner_takes_all_active,
+                )
                 multiplier = 1.0
 
                 for activation in activations_by_match_and_user.get((match_id, user_id), []):
@@ -393,7 +549,7 @@ class SpecialService:
                 if user_id in catch_up_users:
                     multiplier *= 2.0
 
-                final_points = round(base_points * multiplier, 4)
+                final_points = round(performance_base_points * multiplier, 4)
                 point_map[(match_id, user_id)] = final_points
                 totals[user_id] = totals.get(user_id, 0.0) + final_points
                 completed_records_by_user.setdefault(user_id, []).append(
@@ -458,6 +614,14 @@ class SpecialService:
                 losses_by_user[user_id] = losses_by_user.get(user_id, 0) + 1
 
         all_matches = {match.id: match for match in self.repo.list_matches()}
+        king_of_the_hill_holder_user_id = self._get_king_of_the_hill_holder_user_id(
+            matches_by_id=all_matches,
+            override_modes=override_modes,
+        )
+        self._cleanup_king_of_the_hill_activations(
+            matches_by_id=all_matches,
+            holder_user_id=king_of_the_hill_holder_user_id,
+        )
         activations = self.repo.list_match_special_activations()
         any_activation_keys: dict[int, set[str]] = {}
         pending_activation_keys: dict[int, set[str]] = {}
@@ -469,6 +633,7 @@ class SpecialService:
                 pending_activation_keys.setdefault(activation.participant_user_id, set()).add(activation.special_key)
 
         last_place_user_ids = self.get_current_last_place_user_ids()
+        first_place_user_ids = self.get_current_first_place_user_ids()
         catch_up_user_ids = self.get_current_catch_up_user_ids()
 
         for participant in participants:
@@ -490,6 +655,15 @@ class SpecialService:
                     is_active = is_pending
                 elif special_key == SPECIAL_DOUBLE_OR_NOTHING:
                     is_available = is_pending or ((not has_been_used) and wins_by_user.get(user_id, 0) >= 1)
+                    is_active = is_pending
+                elif special_key == SPECIAL_KING_OF_THE_HILL:
+                    is_available = is_pending or (king_of_the_hill_holder_user_id == user_id)
+                    is_active = is_pending
+                elif special_key == SPECIAL_WINNER_TAKES_ALL:
+                    has_unlocked_once = bool(existing and existing.granted_at)
+                    is_available = is_pending or (
+                        (not has_been_used) and (has_unlocked_once or user_id in first_place_user_ids)
+                    )
                     is_active = is_pending
                 elif special_key == SPECIAL_WHEEL:
                     is_available = is_pending or ((not has_been_used) and losses_by_user.get(user_id, 0) >= 2)
@@ -519,7 +693,7 @@ class SpecialService:
                 override_mode = override_modes.get((user_id, special_key), "auto")
                 if override_mode == "on":
                     is_available = True
-                    if special_key == SPECIAL_CATCH_UP:
+                    if special_key in {SPECIAL_CATCH_UP}:
                         is_active = True
                 elif override_mode == "off":
                     is_available = False
@@ -581,7 +755,7 @@ class SpecialService:
                     status = "active"
                 elif special and special.is_available:
                     status = "available"
-                elif special and special.activated_at and special_key != SPECIAL_CATCH_UP:
+                elif special and special.activated_at and special_key not in {SPECIAL_CATCH_UP, SPECIAL_KING_OF_THE_HILL}:
                     status = "used"
 
                 if override_mode == "on":
@@ -636,6 +810,24 @@ class SpecialService:
                 resolved_at=None,
                 payload_json=None,
                 updated_at=utc_now_iso(),
+            )
+
+        existing_pending_activation = next(
+            (
+                activation
+                for activation in self.repo.list_match_special_activations(
+                    participant_user_id=participant_user_id,
+                    special_key=special_key,
+                )
+                if (self.repo.get_match(activation.match_id) or match).status != "completed"
+            ),
+            None,
+        )
+        if existing_pending_activation is not None:
+            if existing_pending_activation.match_id == match_id:
+                raise ValidationError(f"{self.special_label(special_key)} is already active on this match.")
+            raise ValidationError(
+                f"{self.special_label(special_key)} is already active on match #{existing_pending_activation.match_id}."
             )
 
         now_iso = utc_now_iso()
@@ -711,14 +903,18 @@ class SpecialService:
 
         activations_by_match_and_user: dict[tuple[int, int], list[MatchSpecialActivation]] = {}
         activations_by_user: dict[int, list[MatchSpecialActivation]] = {}
+        activations_by_match: dict[int, list[MatchSpecialActivation]] = {}
         for activation in activations:
             key = (activation.match_id, activation.participant_user_id)
             activations_by_match_and_user.setdefault(key, []).append(activation)
             activations_by_user.setdefault(activation.participant_user_id, []).append(activation)
+            activations_by_match.setdefault(activation.match_id, []).append(activation)
 
         for activation_list in activations_by_match_and_user.values():
             activation_list.sort(key=self._activation_sort_key)
         for activation_list in activations_by_user.values():
+            activation_list.sort(key=self._activation_sort_key)
+        for activation_list in activations_by_match.values():
             activation_list.sort(key=self._activation_sort_key)
 
         bets_by_match: dict[int, list] = {}
@@ -736,6 +932,10 @@ class SpecialService:
             match_id = int(match_row["match_id"])
             outcome = str(match_row["outcome"])
             entered_at = str(match_row["entered_at"])
+            winner_takes_all_active = self._match_has_winner_takes_all_activation(
+                match_activations=activations_by_match.get(match_id, []),
+                outcome=outcome,
+            )
 
             leader_total = max(totals.values()) if totals else 0.0
             catch_up_users = {
@@ -748,7 +948,16 @@ class SpecialService:
                 user_id = int(participant_row["user_id"])
                 side_number = int(participant_row["side_number"])
                 player_outcome = self._participant_outcome(outcome, side_number)
-                base_points = POINTS[player_outcome]
+                standard_base_points = POINTS[player_outcome]
+                king_of_the_hill_active = self._match_has_special_for_user(
+                    match_activations_for_user=activations_by_match_and_user.get((match_id, user_id), []),
+                    special_key=SPECIAL_KING_OF_THE_HILL,
+                )
+                performance_base_points = self._base_points_for_match_outcome(
+                    player_outcome=player_outcome,
+                    king_of_the_hill_active=king_of_the_hill_active,
+                    winner_takes_all_active=winner_takes_all_active,
+                )
                 multiplier = 1.0
 
                 for activation in activations_by_match_and_user.get((match_id, user_id), []):
@@ -763,8 +972,8 @@ class SpecialService:
                 if user_id in catch_up_users:
                     multiplier *= 2.0
 
-                final_points = round(base_points * multiplier, 4)
-                adjustment = round(final_points - base_points, 4)
+                final_points = round(performance_base_points * multiplier, 4)
+                adjustment = round(final_points - standard_base_points, 4)
                 if abs(adjustment) > 1e-9:
                     self.repo.upsert_competition_point_award(
                         participant_user_id=user_id,

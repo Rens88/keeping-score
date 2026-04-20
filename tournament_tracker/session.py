@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 SESSION_USER_ID_KEY = "auth_user_id"
 HOME_PAGE = "app.py"
+PROFILE_PAGE = "pages/06_My_Profile.py"
 REGISTRATION_WAIT_PAGE = "pages/12_And_Now_We_Wait.py"
 REGISTRATION_GAME_PAGE = "pages/13_Registration_Game.py"
 
@@ -59,6 +60,8 @@ def enforce_registration_gate(
         return
     if allow_gate_page and current_page == destination:
         return
+    if current_page == PROFILE_PAGE:
+        return
     st.switch_page(destination)
 
 
@@ -96,16 +99,29 @@ def require_admin(services: AppServices, *, current_page: Optional[str] = None) 
     st.stop()
 
 
-def _render_navigation_rows(buttons: list[tuple[str, str, str]], row_size: int = 3) -> None:
+def _render_navigation_rows(
+    buttons: list[tuple[str, str, str, str]],
+    *,
+    row_size: int = 3,
+    icon_only: bool = False,
+) -> None:
+    if icon_only:
+        with st.container(horizontal=True, horizontal_alignment="left", gap="small"):
+            for icon, label, page, key in buttons:
+                if st.button(icon, width="content", key=key, help=label):
+                    st.switch_page(page)
+        return
+
     for start in range(0, len(buttons), row_size):
         row_buttons = buttons[start:start + row_size]
         row_cols = st.columns(len(row_buttons))
-        for col, (label, page, key) in zip(row_cols, row_buttons):
-            if col.button(label, width="stretch", key=key):
+        for col, (icon, label, page, key) in zip(row_cols, row_buttons):
+            button_label = f"{icon} {label}"
+            if col.button(button_label, width="stretch", key=key):
                 st.switch_page(page)
 
 
-def render_main_navigation(user: Optional[User]) -> None:
+def render_main_navigation(user: Optional[User], *, current_page: Optional[str] = None) -> None:
     if not user:
         return
 
@@ -117,59 +133,67 @@ def render_main_navigation(user: Optional[User]) -> None:
     except Exception:
         gate_destination = None
 
+    text_mode = current_page == HOME_PAGE
     if gate_destination:
-        label = "🧩 Registration Game" if gate_destination == REGISTRATION_GAME_PAGE else "⏳ And Now We Wait"
+        label = "Registration Game" if gate_destination == REGISTRATION_GAME_PAGE else "And Now We Wait"
+        icon = "🧩" if gate_destination == REGISTRATION_GAME_PAGE else "⏳"
         _render_navigation_rows(
             [
-                (label, gate_destination, "top_nav_registration_gate"),
+                (icon, label, gate_destination, "top_nav_registration_gate"),
+                ("👤", "My Profile", PROFILE_PAGE, "top_nav_gated_profile"),
             ],
-            row_size=1,
+            row_size=2,
+            icon_only=not text_mode,
         )
         st.divider()
         return
 
     st.markdown("**Quick Navigation**")
-    st.caption("Use the top row for fast page switches without opening the sidebar.")
+    st.caption("Click on the icons to navigate to the other pages, use sidepanel for more details.")
     _render_navigation_rows(
         [
-            ("🏠 Home", "app.py", "top_nav_home"),
-            ("🏆 Leaderboard", "pages/03_Leaderboard.py", "top_nav_leaderboard"),
-            ("📅 Upcoming", "pages/04_Upcoming_Matches.py", "top_nav_upcoming"),
-            ("📜 Past", "pages/05_Past_Matches.py", "top_nav_past"),
-            ("👤 My Profile", "pages/06_My_Profile.py", "top_nav_profile"),
-        ]
+            ("🏠", "Home", "app.py", "top_nav_home"),
+            ("🏆", "Leaderboard", "pages/03_Leaderboard.py", "top_nav_leaderboard"),
+            ("📅", "Upcoming", "pages/04_Upcoming_Matches.py", "top_nav_upcoming"),
+            ("📜", "Past", "pages/05_Past_Matches.py", "top_nav_past"),
+            ("👤", "My Profile", PROFILE_PAGE, "top_nav_profile"),
+        ],
+        row_size=5,
+        icon_only=not text_mode,
     )
 
     if user.role == "participant":
         _render_navigation_rows(
             [
-                ("✨ Specials", "pages/17_Specials.py", "top_nav_specials"),
-                ("🏡 Weekend Info", "pages/14_Weekend_Info.py", "top_nav_weekend_info"),
-                ("🔨 Mini Game", "pages/15_Mini_Game.py", "top_nav_mini_game"),
+                ("✨", "Specials", "pages/17_Specials.py", "top_nav_specials"),
+                ("🏡", "Weekend Info", "pages/14_Weekend_Info.py", "top_nav_weekend_info"),
+                ("🔨", "Mini Game", "pages/15_Mini_Game.py", "top_nav_mini_game"),
             ],
             row_size=3,
+            icon_only=not text_mode,
         )
 
     if user.role == "admin":
         _render_navigation_rows(
             [
-                ("🛡️ Admin Home", "pages/07_Admin_Dashboard.py", "top_nav_admin_home"),
-                ("✨ Specials", "pages/17_Specials.py", "top_nav_admin_specials"),
-                ("👥 Participants", "pages/08_Admin_Participants_Invitations.py", "top_nav_admin_participants"),
-                ("🧩 Registration Game", "pages/12_Admin_Registration_Game.py", "top_nav_admin_registration_game"),
-                ("🔨 Mini Game", "pages/16_Admin_Mini_Game.py", "top_nav_admin_mini_game"),
-                ("🗓️ Schedule", "pages/09_Admin_Schedule.py", "top_nav_admin_schedule"),
-                ("✅ Results", "pages/10_Admin_Results.py", "top_nav_admin_results"),
-                ("💾 Backup", "pages/11_Admin_Backup_Restore.py", "top_nav_admin_backup"),
-            ]
+                ("🛡️", "Admin Home", "pages/07_Admin_Dashboard.py", "top_nav_admin_home"),
+                ("✨", "Specials", "pages/17_Specials.py", "top_nav_admin_specials"),
+                ("👥", "Participants", "pages/08_Admin_Participants_Invitations.py", "top_nav_admin_participants"),
+                ("🧩", "Registration Game", "pages/12_Admin_Registration_Game.py", "top_nav_admin_registration_game"),
+                ("🔨", "Mini Game", "pages/16_Admin_Mini_Game.py", "top_nav_admin_mini_game"),
+                ("🗓️", "Schedule", "pages/09_Admin_Schedule.py", "top_nav_admin_schedule"),
+                ("✅", "Results", "pages/10_Admin_Results.py", "top_nav_admin_results"),
+                ("💾", "Backup", "pages/11_Admin_Backup_Restore.py", "top_nav_admin_backup"),
+            ],
+            icon_only=not text_mode,
         )
 
     st.divider()
 
 
-def render_sidebar(user: Optional[User]) -> None:
+def render_sidebar(user: Optional[User], *, current_page: Optional[str] = None) -> None:
     render_cangeroes_header()
-    render_main_navigation(user)
+    render_main_navigation(user, current_page=current_page)
 
     with st.sidebar:
         st.image(
@@ -198,6 +222,8 @@ def render_sidebar(user: Optional[User]) -> None:
             label = "Registration Game" if gate_destination == REGISTRATION_GAME_PAGE else "And Now We Wait"
             if st.button(label, width="stretch", key="side_nav_registration_gate"):
                 st.switch_page(gate_destination)
+            if st.button("My Profile", width="stretch", key="side_nav_gated_profile"):
+                st.switch_page(PROFILE_PAGE)
         else:
             if st.button("Leaderboard", width="stretch", key="side_nav_leaderboard"):
                 st.switch_page("pages/03_Leaderboard.py")
@@ -206,7 +232,7 @@ def render_sidebar(user: Optional[User]) -> None:
             if st.button("Past Matches", width="stretch", key="side_nav_past"):
                 st.switch_page("pages/05_Past_Matches.py")
             if st.button("My Profile", width="stretch", key="side_nav_profile"):
-                st.switch_page("pages/06_My_Profile.py")
+                st.switch_page(PROFILE_PAGE)
             if user and user.role == "participant":
                 if st.button("Specials", width="stretch", key="side_nav_specials"):
                     st.switch_page("pages/17_Specials.py")

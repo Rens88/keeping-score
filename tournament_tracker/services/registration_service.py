@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Literal, TypedDict, cast
+from zoneinfo import ZoneInfo
 
 from tournament_tracker.config import AppConfig
 from tournament_tracker.models import User, UserWithProfile, utc_now_iso
@@ -13,12 +15,16 @@ from tournament_tracker.services.errors import ValidationError
 OptionKey = Literal["A", "B", "C", "D"]
 
 LOCATION_ANSWER = "Erp"
-MAX_REGISTRATION_GAME_POINTS = 10
 REGISTRATION_GAME_SETTING_KEY = "registration_game_active"
+REGISTRATION_GAME_OPENS_AT_KEY = "registration_game_opens_at"
 DEFAULT_PARTICIPANT_MOTTO = "Still warming up for the weekend."
 REGISTRATION_GAME_AWARD_SOURCE_TYPE = "registration_game"
 REGISTRATION_GAME_AWARD_SOURCE_KEY = "registration_game"
 REGISTRATION_GAME_AWARD_LABEL = "Registration Game"
+REGISTRATION_QUESTION_POINTS = 1.0
+REGISTRATION_REMAINING_QUESTION_BONUS_POINTS = 1.5
+APP_TIMEZONE = ZoneInfo("Europe/Amsterdam")
+DEFAULT_REGISTRATION_OPEN_DELAY_HOURS = 1
 
 
 class RegistrationGameOption(TypedDict):
@@ -50,7 +56,14 @@ class RegistrationQuestionResult:
 class RegistrationGuessResult:
     is_correct: bool
     normalized_guess: str
-    points_awarded: int | None = None
+    points_awarded: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationGameStatus:
+    state: str
+    enabled: bool
+    opens_at: datetime | None
 
 
 class RegistrationService:
@@ -78,7 +91,7 @@ class RegistrationService:
             "hint": "Je moet ongeveer 150 graden draaien vanaf het noorden.",
         },
         {
-            "question": "Welke provincie ligt ten zuidoosten van Utrecht?",
+            "question": "Welke Nederlandse provincie heeft als hoofdstad niet de grootste stad binnen de provincie, telt meer dan vijf gemeenten met meer dan 100.000 inwoners, en ligt volledig ten zuiden van de grote rivieren?",
             "options": (
                 {"key": "A", "label": "Gelderland"},
                 {"key": "B", "label": "Noord-Brabant"},
@@ -91,10 +104,10 @@ class RegistrationService:
         {
             "question": "Welke van deze steden ligt het dichtst bij de bestemming?",
             "options": (
-                {"key": "A", "label": "Amersfoort"},
-                {"key": "B", "label": "Arnhem"},
-                {"key": "C", "label": "Veghel"},
-                {"key": "D", "label": "Zwolle"},
+                {"key": "A", "label": "Oisterwijk"},
+                {"key": "B", "label": "Oosterhout"},
+                {"key": "C", "label": "Helmond"},
+                {"key": "D", "label": "Wijchen"},
             ),
             "correctAnswer": "C",
             "hint": "De eindlocatie ligt net onder deze plaats.",
@@ -102,10 +115,10 @@ class RegistrationService:
         {
             "question": "Welke van deze plaatsen ligt in Noord-Brabant?",
             "options": (
-                {"key": "A", "label": "Tiel"},
+                {"key": "A", "label": "Dordrecht"},
                 {"key": "B", "label": "Veghel"},
-                {"key": "C", "label": "Zeist"},
-                {"key": "D", "label": "Harderwijk"},
+                {"key": "C", "label": "Weert"},
+                {"key": "D", "label": "Waardenburg"},
             ),
             "correctAnswer": "B",
             "hint": "De bestemming ligt in de buurt van Veghel.",
@@ -152,7 +165,7 @@ class RegistrationService:
                 {"key": "D", "label": "Werf"},
             ),
             "correctAnswer": "C",
-            "hint": "Denk aan een Groningse heuvel.",
+            "hint": "De bestemming rijmt op een Groningse heuvel.",
         },
         {
             "question": "Wat is de bestemming?",
@@ -171,6 +184,43 @@ class RegistrationService:
         self.repo = repo
         self.config = config
 
+    @staticmethod
+    def local_now() -> datetime:
+        return datetime.now(APP_TIMEZONE)
+
+    @staticmethod
+    def localize_naive(local_dt: datetime) -> datetime:
+        if local_dt.tzinfo is not None:
+            return local_dt.astimezone(APP_TIMEZONE)
+        return local_dt.replace(tzinfo=APP_TIMEZONE)
+
+    @staticmethod
+    def default_open_at() -> datetime:
+        return RegistrationService.local_now() + timedelta(hours=DEFAULT_REGISTRATION_OPEN_DELAY_HOURS)
+
+    @staticmethod
+    def parse_optional_datetime(raw_value: str | None) -> datetime | None:
+        value = (raw_value or "").strip()
+        if not value:
+            return None
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=APP_TIMEZONE)
+        return parsed.astimezone(APP_TIMEZONE)
+
+    @staticmethod
+    def format_datetime(value: str | datetime | None) -> str:
+        if value is None:
+            return "Not set"
+        if isinstance(value, str):
+            parsed = RegistrationService.parse_optional_datetime(value)
+        else:
+            parsed = value.astimezone(APP_TIMEZONE)
+        if parsed is None:
+            return "Not set"
+        return parsed.strftime("%A %d %B %Y %H:%M")
+
     def list_questions(self) -> tuple[RegistrationGameQuestion, ...]:
         return self.QUESTIONS
 
@@ -182,24 +232,70 @@ class RegistrationService:
         return {option["key"]: option["label"] for option in question["options"]}
 
     @staticmethod
-    def calculate_score(incorrect_answers: int) -> int:
-        return max(0, MAX_REGISTRATION_GAME_POINTS - incorrect_answers)
+    def calculate_points_so_far(questions_answered: int, incorrect_answers: int) -> float:
+        correct_answers = max(0, questions_answered - incorrect_answers)
+        return round(correct_answers * REGISTRATION_QUESTION_POINTS, 1)
 
-    def is_registration_game_active(self) -> bool:
+    @staticmethod
+    def calculate_completion_points(questions_answered: int, incorrect_answers: int) -> float:
+        correct_answers = max(0, questions_answered - incorrect_answers)
+        remaining_questions = max(0, len(RegistrationService.QUESTIONS) - questions_answered)
+        return round(
+            (correct_answers * REGISTRATION_QUESTION_POINTS)
+            + (remaining_questions * REGISTRATION_REMAINING_QUESTION_BONUS_POINTS),
+            1,
+        )
+
+    def is_registration_game_enabled(self) -> bool:
         setting = self.repo.get_app_setting(REGISTRATION_GAME_SETTING_KEY)
         return (setting or "").strip().lower() == "true"
 
-    def set_registration_game_active(self, *, admin_user_id: int, active: bool) -> None:
+    def get_game_status(self, now: datetime | None = None) -> RegistrationGameStatus:
+        enabled = self.is_registration_game_enabled()
+        opens_at = self.parse_optional_datetime(self.repo.get_app_setting(REGISTRATION_GAME_OPENS_AT_KEY))
+        current_time = now.astimezone(APP_TIMEZONE) if now is not None else self.local_now()
+
+        if not enabled:
+            state = "disabled"
+        elif opens_at and current_time < opens_at:
+            state = "scheduled"
+        else:
+            state = "live"
+
+        return RegistrationGameStatus(
+            state=state,
+            enabled=enabled,
+            opens_at=opens_at,
+        )
+
+    def is_registration_game_active(self) -> bool:
+        return self.get_game_status().state == "live"
+
+    def update_game_config(
+        self,
+        *,
+        admin_user_id: int,
+        enabled: bool,
+        opens_at: datetime,
+    ) -> None:
+        local_open = self.localize_naive(opens_at)
         now_iso = utc_now_iso()
         self.repo.set_app_setting(
             key=REGISTRATION_GAME_SETTING_KEY,
-            value="true" if active else "false",
+            value="true" if enabled else "false",
             updated_at=now_iso,
         )
-        state_label = "activated" if active else "paused"
+        self.repo.set_app_setting(
+            key=REGISTRATION_GAME_OPENS_AT_KEY,
+            value=local_open.isoformat(),
+            updated_at=now_iso,
+        )
         self.repo.log_activity(
-            event_type="registration_game_toggle",
-            message=f"Admin {state_label} the registration game",
+            event_type="registration_game_config_updated",
+            message=(
+                "Admin updated the registration game schedule "
+                f"(enabled={enabled}, opens={local_open.isoformat()})"
+            ),
             created_at=now_iso,
             related_user_id=admin_user_id,
         )
@@ -322,7 +418,7 @@ class RegistrationService:
             guesses_used=user.registration_game_guesses_used,
             incorrect_answers=incorrect_answers,
             completed=user.registration_game_completed,
-            points=user.registration_game_points,
+            points=self.calculate_points_so_far(questions_answered, incorrect_answers),
             completed_at=user.registration_game_completed_at,
             updated_at=now_iso,
         )
@@ -352,10 +448,13 @@ class RegistrationService:
         now_iso = utc_now_iso()
 
         if normalized_guess == normalized_answer:
-            awarded_points = self.calculate_score(user.registration_game_incorrect_answers)
+            awarded_points = self.calculate_completion_points(
+                user.registration_questions_answered,
+                user.registration_game_incorrect_answers,
+            )
             self.repo.update_registration_game_progress(
                 user_id=user_id,
-                questions_answered=user.registration_questions_answered,
+                questions_answered=len(self.QUESTIONS),
                 guesses_used=user.registration_game_guesses_used,
                 incorrect_answers=user.registration_game_incorrect_answers,
                 completed=True,
@@ -369,7 +468,7 @@ class RegistrationService:
                 source_key=REGISTRATION_GAME_AWARD_SOURCE_KEY,
                 source_label=REGISTRATION_GAME_AWARD_LABEL,
                 placement=None,
-                points_awarded=float(awarded_points),
+            points_awarded=float(awarded_points),
                 awarded_at=now_iso,
                 awarded_by_user_id=None,
             )
@@ -395,7 +494,10 @@ class RegistrationService:
             guesses_used=guesses_used,
             incorrect_answers=user.registration_game_incorrect_answers,
             completed=False,
-            points=user.registration_game_points,
+            points=self.calculate_points_so_far(
+                user.registration_questions_answered,
+                user.registration_game_incorrect_answers,
+            ),
             completed_at=user.registration_game_completed_at,
             updated_at=now_iso,
         )

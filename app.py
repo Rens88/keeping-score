@@ -12,16 +12,16 @@ services = get_services()
 current_user = get_current_user(services)
 if current_user:
     enforce_registration_gate(services, current_user, current_page="app.py")
-render_sidebar(current_user)
+render_sidebar(current_user, current_page="app.py")
 
 render_page_intro(
     "Weekend Tournament Tracker",
-    "Use the quick links below to move between leaderboard, matches, profiles, admin tools, and the new registration flow.",
+    "Of course we needed this app. We can reveal the accommodation location, track rankings, view matches, use specials, play mini-games, and earn points by predicting outcomes.",
 )
 
 if current_user:
     st.success("You are logged in.")
-    st.write("Use the sidebar to navigate between leaderboard, matches, your weekend info, and the mini game.")
+    st.write("Use the icons above or the sidebar to jump between leaderboard, matches, specials, and admin tools.")
 
     if current_user.role == "admin":
         st.divider()
@@ -45,19 +45,6 @@ if current_user:
                 st.switch_page("pages/10_Admin_Results.py")
             if st.button("Backup & Restore", width="stretch", key="home_admin_backup"):
                 st.switch_page("pages/11_Admin_Backup_Restore.py")
-    else:
-        st.divider()
-        st.subheader("Weekend Quick Links")
-        participant_col_1, participant_col_2, participant_col_3 = st.columns(3)
-        with participant_col_1:
-            if st.button("Specials", width="stretch", key="home_specials"):
-                st.switch_page("pages/17_Specials.py")
-        with participant_col_2:
-            if st.button("Weekend Info", width="stretch", key="home_weekend_info"):
-                st.switch_page("pages/14_Weekend_Info.py")
-        with participant_col_3:
-            if st.button("Mini Game", width="stretch", key="home_mini_game"):
-                st.switch_page("pages/15_Mini_Game.py")
 else:
     with st.container(border=True):
         st.subheader("Welcome")
@@ -72,6 +59,6 @@ else:
 
 st.divider()
 st.caption(
-    "MVP: head-to-head matches, admin-managed registration, secure login, leaderboard, the registration game, Whack-a-mole, and the one-time doubler mechanic."
+    "Of course we needed this app. We can reveal the accommodation location, track rankings, view matches, use specials, play mini-games, and earn points by predicting outcomes."
 )
 render_bottom_decoration()

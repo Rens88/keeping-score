@@ -123,7 +123,7 @@ else:
                 "status": participant_status(participant),
                 "questions_answered": f"{participant.registration_questions_answered}/10",
                 "incorrect_answers": participant.registration_game_incorrect_answers,
-                "starting_points": f"{participant.registration_game_points:.0f}",
+                "starting_points": f"{participant.registration_game_points:.1f}",
             }
         )
 

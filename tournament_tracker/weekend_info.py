@@ -13,5 +13,5 @@ PRACTICAL_INFO = (
     "Towels provided",
     "Bed linen provided",
     "Check-in Friday 14:00",
-    "Check-out Saturday 15:00",
+    "Check-out Sundayt 15:00",
 )

@@ -6,6 +6,13 @@ import os
 from typing import Any, Optional
 
 DEFAULT_PUBLIC_APP_BASE_URL = "https://keeping-score-teamweekend-2025-2026.streamlit.app/"
+IGNORED_APP_BASE_URL_PLACEHOLDERS = frozenset(
+    {
+        "https://your-app-name.streamlit.app",
+        "https://your-app-name.streamlit.app/",
+        "your-app-name.streamlit.app",
+    }
+)
 
 
 def _read_streamlit_secret(key: str) -> Optional[str]:
@@ -70,6 +77,15 @@ def _safe_int(value: Optional[str], fallback: int) -> int:
         return fallback
 
 
+def _sanitize_app_base_url(value: Optional[str]) -> str:
+    candidate = (value or "").strip()
+    if not candidate:
+        return ""
+    if candidate.lower() in IGNORED_APP_BASE_URL_PLACEHOLDERS:
+        return ""
+    return candidate.rstrip("/")
+
+
 def get_config() -> AppConfig:
     app_env = _normalize_app_env(_get_setting("APP_ENV", "local"))
     db_path_raw = _get_setting("DB_PATH", _default_db_path_for_env(app_env))
@@ -84,7 +100,7 @@ def get_config() -> AppConfig:
     seed_admin_username = (_get_setting("SEED_ADMIN_USERNAME", None) or "").strip() or None
     seed_admin_email = (_get_setting("SEED_ADMIN_EMAIL", None) or "").strip().lower() or None
     seed_admin_password = (_get_setting("SEED_ADMIN_PASSWORD", None) or "").strip() or None
-    configured_app_base_url = (_get_setting("APP_BASE_URL", None) or "").strip()
+    configured_app_base_url = _sanitize_app_base_url(_get_setting("APP_BASE_URL", None))
     app_base_url_is_fallback = not bool(configured_app_base_url)
     app_base_url = (configured_app_base_url or DEFAULT_PUBLIC_APP_BASE_URL).rstrip("/")
 

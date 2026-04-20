@@ -257,3 +257,35 @@ Requested Changes (summarized)
 44. Invitation base-url fallback:
 - Use `https://keeping-score-teamweekend-2025-2026.streamlit.app/` as the fallback base URL for registration invitations whenever `APP_BASE_URL` is not configured.
 - Update the admin registration page messaging so it explains that the app is using the fallback cloud URL instead of the old `/` placeholder, while still encouraging a custom/local `APP_BASE_URL` when needed.
+
+45. Invitation placeholder URL hardening:
+- Treat legacy/example `APP_BASE_URL` values such as `https://your-app-name.streamlit.app` as invalid placeholders instead of honoring them in generated registration invitations.
+- When such a placeholder is present, fall back to the fixed public URL `https://keeping-score-teamweekend-2025-2026.streamlit.app/` so invitation copy never uses the dummy Streamlit example hostname.
+
+46. Winner-reward special expansion:
+- Add a new one-time manual match special called `The winner takes it all`, unlocked the first time a participant reaches first place in the ranking.
+- When this special is played on a non-draw match, the winning side should receive 5 performance points and the losing side 0, while draws keep the normal scoring.
+- Show the new special in the upcoming-match actions, special explanations, admin special overview, and per-person override controls.
+- Enforce the existing “at most one copy of the same special at a time” rule more strictly by blocking a second pending activation of the same manual special before the first one resolves.
+
+47. King-of-the-Hill, registration scheduling, navigation cleanup, and registration-score update:
+- Add a new transferable `King of the Hill` special that can only be held by the current unique leader, moves to a new leader automatically, and stays with the previous holder only while it is already active in a live match.
+- Let admins schedule the registration game with an opening date/time instead of only a simple on/off toggle, and show waiting participants a countdown plus a profile-edit hint while they are blocked.
+- Allow registration-gated participants to open their profile page so they can update motto and profile picture before the registration game starts.
+- Reduce main-panel quick navigation to icon-only buttons on non-home pages, keep icon+text on the home page, update the navigation/help copy, remove the old participant `Weekend Quick Links`, and refresh the home-page marketing text.
+- Change registration-game scoring so each correct answer gives 1.0 point, a correct destination guess instantly awards the remaining unanswered questions at 1.5 points each, and the game intro explains the goal, mechanics, and the “don’t share the location” warning.
+- Provide a feasibility assessment for a future admin/participant identity-switch feature without implementing it yet.
+
+48. Compact icon-only top navigation:
+- On non-home pages, make the quick-navigation buttons shrink to the icon content width instead of stretching across the full column, while leaving the home-page icon+text buttons unchanged.
+
+49. Inline icon-only top navigation:
+- On non-home pages, stop rendering the icon-only quick-navigation buttons inside full-width `st.columns`, and instead place them in a left-aligned horizontal row that wraps naturally, so the icons sit next to each other instead of being spread across the page.
+
+50. Continuous icon-flow navigation:
+- On non-home pages, render all icon-only quick-navigation buttons inside one continuous horizontal wrapping container instead of splitting them into several grouped rows, so they break only when the available width runs out.
+
+51. Registration-game content refresh:
+- Update registration question 3 to the longer Dutch province riddle while keeping the same correct answer set.
+- Replace the answer options for questions 4 and 5 with the newly supplied city/place lists while preserving the intended correct options.
+- Update the hint for question 9 to the new phrasing about rhyming with a Groningse heuvel.

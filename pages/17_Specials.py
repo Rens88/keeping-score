@@ -9,6 +9,8 @@ from tournament_tracker.services.special_service import (
     SPECIAL_CATCH_UP,
     SPECIAL_DOUBLER,
     SPECIAL_DOUBLE_OR_NOTHING,
+    SPECIAL_KING_OF_THE_HILL,
+    SPECIAL_WINNER_TAKES_ALL,
     SPECIAL_WHEEL,
 )
 from tournament_tracker.session import render_sidebar, require_login
@@ -18,7 +20,7 @@ st.set_page_config(page_title="Specials", page_icon="✨", layout="wide")
 
 services = get_runtime_services()
 user = require_login(services, current_page="pages/17_Specials.py")
-render_sidebar(user)
+render_sidebar(user, current_page="pages/17_Specials.py")
 
 render_page_intro(
     "Specials",
@@ -34,7 +36,9 @@ participant_specials = (
 catch_up_threshold = services.special_service.get_catch_up_threshold()
 
 if user.role == "participant":
-    available_count = sum(1 for special in participant_specials.values() if special.is_available)
+    available_count = sum(
+        1 for special in participant_specials.values() if special.is_available and not special.is_active
+    )
     active_count = sum(1 for special in participant_specials.values() if special.is_active)
     render_stat_tiles(
         [
@@ -56,8 +60,10 @@ for definition in definitions:
                 st.success("Status: active right now.")
             elif special and special.is_available:
                 st.success("Status: available to use.")
-            elif special and special.activated_at and definition.key != SPECIAL_CATCH_UP:
+            elif special and special.activated_at and definition.key not in {SPECIAL_CATCH_UP, SPECIAL_KING_OF_THE_HILL}:
                 st.info("Status: already used.")
+            elif definition.key == SPECIAL_KING_OF_THE_HILL:
+                st.info("Status: this moves with the current leader unless it is already live in a match.")
             elif definition.key == SPECIAL_CATCH_UP:
                 st.info(
                     "Status: automatic. It turns on only while your gap to number 1 is above the current threshold."
@@ -122,6 +128,8 @@ if user.role == "admin":
                         "name": row["name"],
                         "doubler": row[SPECIAL_DOUBLER],
                         "double_or_nothing": row[SPECIAL_DOUBLE_OR_NOTHING],
+                        "king_of_the_hill": row[SPECIAL_KING_OF_THE_HILL],
+                        "winner_takes_it_all": row[SPECIAL_WINNER_TAKES_ALL],
                         "catch_up_mode": row[SPECIAL_CATCH_UP],
                         "wheel_of_fortune": row[SPECIAL_WHEEL],
                     }
@@ -151,6 +159,8 @@ if user.role == "admin":
                 "Current statuses: "
                 f"Doubler={selected_row[SPECIAL_DOUBLER]}, "
                 f"Double-or-nothing={selected_row[SPECIAL_DOUBLE_OR_NOTHING]}, "
+                f"King of the Hill={selected_row[SPECIAL_KING_OF_THE_HILL]}, "
+                f"The winner takes it all={selected_row[SPECIAL_WINNER_TAKES_ALL]}, "
                 f"Catch-up={selected_row[SPECIAL_CATCH_UP]}, "
                 f"Wheel={selected_row[SPECIAL_WHEEL]}"
             )
@@ -158,6 +168,8 @@ if user.role == "admin":
             special_options = {
                 "Doubler": SPECIAL_DOUBLER,
                 "Double-or-nothing": SPECIAL_DOUBLE_OR_NOTHING,
+                "King of the Hill": SPECIAL_KING_OF_THE_HILL,
+                "The winner takes it all": SPECIAL_WINNER_TAKES_ALL,
                 "Catch-up mode": SPECIAL_CATCH_UP,
                 "Wheel of Fortune": SPECIAL_WHEEL,
             }

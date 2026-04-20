@@ -9,6 +9,8 @@ from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.services.special_service import (
     SPECIAL_DOUBLER,
     SPECIAL_DOUBLE_OR_NOTHING,
+    SPECIAL_KING_OF_THE_HILL,
+    SPECIAL_WINNER_TAKES_ALL,
     SPECIAL_WHEEL,
 )
 from tournament_tracker.session import render_sidebar, require_login
@@ -18,7 +20,7 @@ st.set_page_config(page_title="Upcoming Matches", page_icon="📅", layout="wide
 
 services = get_runtime_services()
 user = require_login(services, current_page="pages/04_Upcoming_Matches.py")
-render_sidebar(user)
+render_sidebar(user, current_page="pages/04_Upcoming_Matches.py")
 
 render_page_intro(
     "Upcoming Matches",
@@ -30,12 +32,26 @@ if user.role == "participant":
     participant_specials = services.special_service.get_participant_specials(user.id)
     available_specials = [
         special_key
-        for special_key in (SPECIAL_DOUBLER, SPECIAL_DOUBLE_OR_NOTHING, SPECIAL_WHEEL)
-        if participant_specials.get(special_key) and participant_specials[special_key].is_available
+        for special_key in (
+            SPECIAL_DOUBLER,
+            SPECIAL_DOUBLE_OR_NOTHING,
+            SPECIAL_KING_OF_THE_HILL,
+            SPECIAL_WINNER_TAKES_ALL,
+            SPECIAL_WHEEL,
+        )
+        if participant_specials.get(special_key)
+        and participant_specials[special_key].is_available
+        and not participant_specials[special_key].is_active
     ]
     active_specials = [
         special_key
-        for special_key in (SPECIAL_DOUBLER, SPECIAL_DOUBLE_OR_NOTHING, SPECIAL_WHEEL)
+        for special_key in (
+            SPECIAL_DOUBLER,
+            SPECIAL_DOUBLE_OR_NOTHING,
+            SPECIAL_KING_OF_THE_HILL,
+            SPECIAL_WINNER_TAKES_ALL,
+            SPECIAL_WHEEL,
+        )
         if participant_specials.get(special_key) and participant_specials[special_key].is_active
     ]
     render_stat_tiles(
@@ -86,12 +102,14 @@ def _render_special_actions(match_card) -> None:
     action_specs = [
         (SPECIAL_DOUBLER, "Play doubler"),
         (SPECIAL_DOUBLE_OR_NOTHING, "Play double-or-nothing"),
+        (SPECIAL_KING_OF_THE_HILL, "Play King of the Hill"),
+        (SPECIAL_WINNER_TAKES_ALL, "Play The winner takes it all"),
         (SPECIAL_WHEEL, "Spin Wheel of Fortune"),
     ]
     available_specs = [
         (special_key, label)
         for special_key, label in action_specs
-        if specials.get(special_key) and specials[special_key].is_available
+        if specials.get(special_key) and specials[special_key].is_available and not specials[special_key].is_active
     ]
     if not available_specs:
         return

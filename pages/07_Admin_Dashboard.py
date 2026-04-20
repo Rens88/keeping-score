@@ -3,12 +3,13 @@ from __future__ import annotations
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.session import render_sidebar, require_admin
+from tournament_tracker.ui import render_stat_tiles
 
 st.set_page_config(page_title="Admin Dashboard", page_icon="🛡️", layout="wide")
 
-services = get_services()
+services = get_runtime_services()
 admin_user = require_admin(services, current_page="pages/07_Admin_Dashboard.py")
 render_sidebar(admin_user)
 
@@ -31,26 +32,31 @@ live_matches = [m for m in all_matches if m.status == "live"]
 upcoming_matches = [m for m in all_matches if m.status == "upcoming"]
 completed_matches = [m for m in all_matches if m.status == "completed"]
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Participants", len(participants))
-col2.metric("Upcoming", len(upcoming_matches))
-col3.metric("Live", len(live_matches))
-col4.metric("Completed", len(completed_matches))
+render_stat_tiles(
+    [
+        ("Participants", str(len(participants))),
+        ("Upcoming", str(len(upcoming_matches))),
+        ("Live", str(len(live_matches))),
+        ("Completed", str(len(completed_matches))),
+    ]
+)
 
 st.divider()
 st.subheader("Quick Actions")
-qa1, qa2, qa3, qa4, qa5, qa6 = st.columns(6)
+qa1, qa2, qa3, qa4, qa5, qa6, qa7 = st.columns(7)
 if qa1.button("Participants & Registration", width="stretch", key="admin_dash_quick_participants"):
     st.switch_page("pages/08_Admin_Participants_Invitations.py")
 if qa2.button("Registration Game", width="stretch", key="admin_dash_quick_registration_game"):
     st.switch_page("pages/12_Admin_Registration_Game.py")
 if qa3.button("Mini Game", width="stretch", key="admin_dash_quick_minigame"):
     st.switch_page("pages/16_Admin_Mini_Game.py")
-if qa4.button("Manage Schedule", width="stretch", key="admin_dash_quick_schedule"):
+if qa4.button("Specials", width="stretch", key="admin_dash_quick_specials"):
+    st.switch_page("pages/17_Specials.py")
+if qa5.button("Manage Schedule", width="stretch", key="admin_dash_quick_schedule"):
     st.switch_page("pages/09_Admin_Schedule.py")
-if qa5.button("Enter/Edit Results", width="stretch", key="admin_dash_quick_results"):
+if qa6.button("Enter/Edit Results", width="stretch", key="admin_dash_quick_results"):
     st.switch_page("pages/10_Admin_Results.py")
-if qa6.button("Backup & Restore", width="stretch", key="admin_dash_quick_backup"):
+if qa7.button("Backup & Restore", width="stretch", key="admin_dash_quick_backup"):
     st.switch_page("pages/11_Admin_Backup_Restore.py")
 
 st.divider()

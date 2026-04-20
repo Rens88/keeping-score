@@ -3,14 +3,14 @@ from __future__ import annotations
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
 from tournament_tracker.ui import OUTCOME_BADGE
 
 st.set_page_config(page_title="Enter or Edit Results", page_icon="✅", layout="wide")
 
-services = get_services()
+services = get_runtime_services()
 admin_user = require_admin(services, current_page="pages/10_Admin_Results.py")
 render_sidebar(admin_user)
 
@@ -37,13 +37,25 @@ with col1:
     st.markdown(f"**{side_name}**")
     for p in selected_card.sides[1]["participants"]:
         if hasattr(p, "display_name"):
-            st.write(f"- {p.display_name}{' x2' if p.has_doubler_on_match else ''}")
+            suffix = ""
+            icons = list(getattr(p, "special_icons", ()))
+            if icons:
+                suffix = " " + " ".join(icons)
+            elif p.has_doubler_on_match:
+                suffix = " ⚡x2"
+            st.write(f"- {p.display_name}{suffix}")
 with col2:
     side_name = selected_card.sides[2]["side_name"] or "Side 2"
     st.markdown(f"**{side_name}**")
     for p in selected_card.sides[2]["participants"]:
         if hasattr(p, "display_name"):
-            st.write(f"- {p.display_name}{' x2' if p.has_doubler_on_match else ''}")
+            suffix = ""
+            icons = list(getattr(p, "special_icons", ()))
+            if icons:
+                suffix = " " + " ".join(icons)
+            elif p.has_doubler_on_match:
+                suffix = " ⚡x2"
+            st.write(f"- {p.display_name}{suffix}")
 
 outcome_options = ["side1_win", "draw", "side2_win"]
 default_outcome_index = outcome_options.index(selected_card.outcome) if selected_card.outcome in outcome_options else 0

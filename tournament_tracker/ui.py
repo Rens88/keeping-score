@@ -53,8 +53,11 @@ def render_photo(photo_blob: Optional[bytes], caption: Optional[str] = None, wid
 
 def participant_label(participant: MatchCardParticipant) -> str:
     label = participant.display_name
-    if participant.has_doubler_on_match:
-        label += " x2"
+    icons = list(participant.special_icons)
+    if participant.has_doubler_on_match and not any(icon.startswith("⚡") for icon in icons):
+        icons.append("⚡x2")
+    if icons:
+        label += " " + " ".join(icons)
     return label
 
 
@@ -131,34 +134,18 @@ def render_match_card(card: MatchCard) -> None:
         st.caption(
             f"Status: {status_label} | Scheduled: {format_datetime(card.scheduled_at)} | Order: {card.scheduled_order or '-'}"
         )
+        st.markdown(f"**{_who_vs_who_text(card)}**")
 
-        col1, col_mid, col2 = st.columns([1, 0.2, 1])
-        with col1:
-            side = card.sides.get(1, {"participants": []})
-            side_name = side.get("side_name") or "Side 1"
-            st.markdown(f"**{side_name}**")
+        for side_number in (1, 2):
+            side = card.sides.get(side_number, {"participants": []})
+            side_name = side.get("side_name") or f"Side {side_number}"
             participants = side.get("participants")
-            if isinstance(participants, list) and participants:
-                for p in participants:
-                    if isinstance(p, MatchCardParticipant):
-                        st.write(participant_label(p))
-            else:
-                st.write("No players assigned")
-
-        with col_mid:
-            st.markdown("### VS")
-
-        with col2:
-            side = card.sides.get(2, {"participants": []})
-            side_name = side.get("side_name") or "Side 2"
-            st.markdown(f"**{side_name}**")
-            participants = side.get("participants")
-            if isinstance(participants, list) and participants:
-                for p in participants:
-                    if isinstance(p, MatchCardParticipant):
-                        st.write(participant_label(p))
-            else:
-                st.write("No players assigned")
+            names = " | ".join(
+                participant_label(p)
+                for p in participants
+                if isinstance(p, MatchCardParticipant)
+            ) if isinstance(participants, list) else ""
+            st.write(f"{side_name}: {names or 'No players assigned'}")
 
         if card.outcome:
             st.info(f"Result: {OUTCOME_BADGE.get(card.outcome, card.outcome)}")
@@ -175,8 +162,8 @@ def _participants_for_side(card: MatchCard, side_number: int) -> list[MatchCardP
 
 
 def _who_vs_who_text(card: MatchCard) -> str:
-    side1_names = " + ".join(p.display_name for p in _participants_for_side(card, 1)) or "Side 1"
-    side2_names = " + ".join(p.display_name for p in _participants_for_side(card, 2)) or "Side 2"
+    side1_names = " + ".join(participant_label(p) for p in _participants_for_side(card, 1)) or "Side 1"
+    side2_names = " + ".join(participant_label(p) for p in _participants_for_side(card, 2)) or "Side 2"
     return f"{side1_names} vs {side2_names}"
 
 
@@ -203,7 +190,16 @@ def _personal_outcome(card: MatchCard, viewer_user_id: int) -> Optional[str]:
     return None
 
 
-def _points_gained_for_viewer(card: MatchCard, viewer_user_id: int, personal_outcome: str) -> float:
+def _points_gained_for_viewer(
+    card: MatchCard,
+    viewer_user_id: int,
+    personal_outcome: str,
+    points_by_match_and_user: Optional[dict[tuple[int, int], float]] = None,
+) -> float:
+    if points_by_match_and_user is not None:
+        mapped_points = points_by_match_and_user.get((card.match_id, viewer_user_id))
+        if mapped_points is not None:
+            return mapped_points
     base_points = POINTS[personal_outcome]
     participants = _participants_for_side(card, 1) + _participants_for_side(card, 2)
     viewer = next((p for p in participants if p.user_id == viewer_user_id), None)
@@ -212,13 +208,17 @@ def _points_gained_for_viewer(card: MatchCard, viewer_user_id: int, personal_out
     return base_points
 
 
-def render_past_matches_compact(cards: list[MatchCard], viewer_user_id: int) -> None:
+def render_past_matches_compact(
+    cards: list[MatchCard],
+    viewer_user_id: int,
+    points_by_match_and_user: Optional[dict[tuple[int, int], float]] = None,
+) -> None:
     render_html_block(
         """
 <style>
     .uc-past-head {
         display: grid;
-        grid-template-columns: minmax(220px, 1fr) 130px 130px;
+        grid-template-columns: minmax(220px, 1fr) 190px;
         gap: 0.6rem;
         font-size: 0.78rem;
         text-transform: uppercase;
@@ -231,7 +231,7 @@ def render_past_matches_compact(cards: list[MatchCard], viewer_user_id: int) -> 
 
     .uc-past-row {
         display: grid;
-        grid-template-columns: minmax(220px, 1fr) 130px 130px;
+        grid-template-columns: minmax(220px, 1fr) 190px;
         gap: 0.6rem;
         align-items: center;
         padding: 0.5rem 0.65rem;
@@ -269,6 +269,7 @@ def render_past_matches_compact(cards: list[MatchCard], viewer_user_id: int) -> 
 
     .uc-past-points {
         font-weight: 800;
+        text-align: right;
     }
 
     @media (max-width: 900px) {
@@ -288,9 +289,8 @@ def render_past_matches_compact(cards: list[MatchCard], viewer_user_id: int) -> 
     render_html_block(
         """
 <div class="uc-past-head">
-    <div>Who Against Whom</div>
-    <div>Result</div>
-    <div>Points Gained</div>
+    <div>Match</div>
+    <div>Points</div>
 </div>
         """
     )
@@ -298,14 +298,12 @@ def render_past_matches_compact(cards: list[MatchCard], viewer_user_id: int) -> 
     for card in cards:
         personal_outcome = _personal_outcome(card, viewer_user_id)
         row_state = personal_outcome or "neutral"
-        result_text = (
-            PERSONAL_OUTCOME_LABEL[personal_outcome]
-            if personal_outcome
-            else OUTCOME_BADGE.get(card.outcome or "", "Result unknown")
-        )
         points_text = "-"
         if personal_outcome:
-            points_text = f"{_points_gained_for_viewer(card, viewer_user_id, personal_outcome):.2f}"
+            points_text = (
+                f"{_points_gained_for_viewer(card, viewer_user_id, personal_outcome, points_by_match_and_user):.1f} "
+                "points earned"
+            )
 
         who_vs_who = _who_vs_who_text(card)
         who_cell = f"#{card.match_id} {card.game_type}: {who_vs_who}"
@@ -314,7 +312,6 @@ def render_past_matches_compact(cards: list[MatchCard], viewer_user_id: int) -> 
             f"""
 <div class="uc-past-row {escape(row_state)}">
     <div class="uc-past-cell">{escape(who_cell)}</div>
-    <div class="uc-past-cell">{escape(result_text)}</div>
     <div class="uc-past-cell uc-past-points">{escape(points_text)}</div>
 </div>
             """

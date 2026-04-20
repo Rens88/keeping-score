@@ -3,13 +3,13 @@ from __future__ import annotations
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import logout_user, render_sidebar, require_admin
 
 st.set_page_config(page_title="Admin Backup and Restore", page_icon="💾", layout="wide")
 
-services = get_services()
+services = get_runtime_services()
 admin_user = require_admin(services, current_page="pages/11_Admin_Backup_Restore.py")
 render_sidebar(admin_user)
 
@@ -68,5 +68,67 @@ if st.button("Import backup and replace current state", type="primary", width="s
             st.error(str(exc))
         except Exception:
             st.error("Import failed. The uploaded file may be invalid or incompatible.")
+
+st.divider()
+st.subheader("Debug State Tools")
+st.caption(
+    "These tools are meant for fast testing. They replace the current database, log you out, and force the app to reload state."
+)
+
+demo_snapshot_path = services.backup_service.get_demo_halfway_snapshot_path()
+with st.container(border=True):
+    st.markdown("**Load fake half-way demo state**")
+    st.caption(
+        "Replaces the current database with the bundled half-way snapshot from "
+        f"`{demo_snapshot_path.as_posix()}`. "
+        "After loading, log in with the demo admin credentials `admin / 1234`."
+    )
+    confirm_demo_load = st.checkbox(
+        "I understand this will replace the current state with the fake half-way data.",
+        key="confirm_demo_load",
+        value=False,
+    )
+    if st.button("Load fake half-way data", width="stretch", key="load_demo_halfway_btn"):
+        if not confirm_demo_load:
+            st.error("Please confirm replacement before loading the fake half-way data.")
+        else:
+            try:
+                services.backup_service.load_demo_halfway_state()
+                logout_user()
+                st.cache_data.clear()
+                st.cache_resource.clear()
+                st.success("The fake half-way state has been loaded. Please log in again.")
+                st.rerun()
+            except ValidationError as exc:
+                st.error(str(exc))
+            except Exception:
+                st.error("Loading the fake half-way state failed.")
+
+with st.container(border=True):
+    st.markdown("**Nuclear reset to fresh state**")
+    st.caption(
+        "Deletes all participant usage data, match history, invites, and participant accounts, then recreates a clean database. "
+        "The current admin account is preserved so you can log back in immediately after the reset."
+    )
+    confirm_fresh_reset = st.checkbox(
+        "I understand this will wipe all participant data and accounts from the live database.",
+        key="confirm_fresh_reset",
+        value=False,
+    )
+    if st.button("Reset to fresh state", width="stretch", type="secondary", key="fresh_reset_btn"):
+        if not confirm_fresh_reset:
+            st.error("Please confirm the full wipe before resetting to a fresh state.")
+        else:
+            try:
+                services.backup_service.reset_to_fresh_state(preserve_admin_user_id=admin_user.id)
+                logout_user()
+                st.cache_data.clear()
+                st.cache_resource.clear()
+                st.success("Fresh state created. Log in again with your current admin credentials.")
+                st.rerun()
+            except ValidationError as exc:
+                st.error(str(exc))
+            except Exception:
+                st.error("Fresh reset failed.")
 
 render_bottom_decoration()

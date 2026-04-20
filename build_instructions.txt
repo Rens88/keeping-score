@@ -224,3 +224,36 @@ Requested Changes (summarized)
 37. Cached AppServices compatibility fix:
 - Harden the new minigame/info pages against older Streamlit `cache_resource` entries by adding a runtime service loader that refreshes or rebuilds legacy `AppServices` objects missing the new `minigame_service`.
 - Route the new weekend info and minigame pages through that runtime-safe bootstrap helper so the app can recover without manual cache clearing.
+
+38. Admin minigame form readability fix:
+- Apply the existing high-contrast custom field-label pattern to the Whack-a-mole admin configuration form instead of relying on Streamlit’s default widget labels.
+- Collapse the built-in labels for the schedule and award-scheme inputs so dark-mode/mobile readability matches the previously hardened admin forms elsewhere in the app.
+
+39. Unified competition-points architecture:
+- Refactor leaderboard point aggregation so registration-game points and ranking-based minigame points flow through the same generic competition-points storage layer instead of being added in two unrelated ways.
+- Add a reusable competition-awards model that can also support future multi-competitor/ranking games beyond the current Whack-a-mole setup.
+- Keep head-to-head match points separate for now, but make the leaderboard combine those match points with the shared competition-awards total in a consistent way.
+
+40. Match-layout, betting, and expanded specials overhaul:
+- Refresh the past-matches layout so it no longer says won/lost/drew, shows earned points with one decimal plus the text `points earned`, and displays special icons next to the relevant participant names.
+- Make the upcoming-matches view more compact and match-summary oriented, then add pre-start betting so participants can risk 1 or 2 already-earned points on `side 1 win`, `draw`, or `side 2 win`, with correct bets paying back double and zero-point users blocked from gambling.
+- Expand specials into a fuller system with a dedicated in-app explanation page, current-availability highlighting per participant, and admin control over the catch-up threshold.
+- Keep everyone starting with a doubler, reactivate it for whoever is last in the ranking, unlock double-or-nothing after a first win, unlock Wheel of Fortune after a second loss, and make catch-up mode automatically double betting and match-performance scoring when the ranking gap exceeds the admin-set threshold.
+- Treat match-related modifiers and betting as the same kind of add-on scoring layer around base head-to-head points so the leaderboard, past-match display, and future multi-competitor/ranking competitions can build on a more consistent scoring model.
+
+41. Release metadata update command:
+- User explicitly said "Update", so `release_info.json` was updated.
+- Patch version was incremented from `v0.0.8` to `v0.0.9`, the date was set to `2026-04-20`, and the nickname was refreshed to summarize the betting/specials release.
+
+42. Admin debug reset tools and special override controls:
+- Add admin debug tooling to load the bundled fake half-way snapshot directly from `demo_state/weekend_tracker_requested_demo_state.sqlite3`.
+- Add a nuclear-style fresh reset that wipes participant usage data, invitations, matches, scores, minigame state, and participant accounts, while preserving the current admin account so the app remains accessible after the reset.
+- Extend the admin specials page with a table showing which participant currently has which special available/active/used, plus persistent per-person overrides that can force a special on, force it off, or return it to the normal automatic rules.
+
+43. Admin dashboard readability follow-up:
+- Replace the remaining `st.metric` summary tiles on the main admin dashboard with the shared high-contrast custom stat tiles used elsewhere in the app, so participant/match counts stay readable on dark mobile screens.
+- Route the admin dashboard through the runtime-safe services loader as well, matching the newer admin pages and avoiding stale cached service objects.
+
+44. Invitation base-url fallback:
+- Use `https://keeping-score-teamweekend-2025-2026.streamlit.app/` as the fallback base URL for registration invitations whenever `APP_BASE_URL` is not configured.
+- Update the admin registration page messaging so it explains that the app is using the fallback cloud URL instead of the old `/` placeholder, while still encouraging a custom/local `APP_BASE_URL` when needed.

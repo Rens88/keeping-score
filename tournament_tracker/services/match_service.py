@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from tournament_tracker.models import Match, utc_now_iso
 from tournament_tracker.repository import SQLiteRepository
 from tournament_tracker.services.errors import NotFoundError, ValidationError
+
+if TYPE_CHECKING:
+    from tournament_tracker.services.special_service import SpecialService
 
 
 DEFAULT_GAME_TYPES = ["Football", "Petanque", "Padel", "Lasergame", "Darts"]
@@ -22,6 +25,7 @@ class MatchCardParticipant:
     side_number: int
     side_name: Optional[str]
     has_doubler_on_match: bool
+    special_icons: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -37,8 +41,9 @@ class MatchCard:
 
 
 class MatchService:
-    def __init__(self, repo: SQLiteRepository) -> None:
+    def __init__(self, repo: SQLiteRepository, special_service: Optional["SpecialService"] = None) -> None:
         self.repo = repo
+        self.special_service = special_service
 
     def _validate_participant_ids(self, side1_ids: list[int], side2_ids: list[int]) -> None:
         if not side1_ids or not side2_ids:
@@ -181,16 +186,24 @@ class MatchService:
         match_ids = [int(row["match_id"]) for row in match_rows]
 
         participant_rows = self.repo.list_match_participant_rows(match_ids)
-        doubler_rows = self.repo.list_doubler_rows_for_matches(match_ids)
+        include_current_catch_up = not statuses or any(status != "completed" for status in statuses)
+        special_icons_by_match_and_user: dict[tuple[int, int], tuple[str, ...]] = {}
+        if self.special_service is not None:
+            special_icons_by_match_and_user = self.special_service.build_match_special_icon_map(
+                match_ids=match_ids,
+                include_current_catch_up=include_current_catch_up,
+            )
         doubler_by_match_and_user = {
-            (int(row["match_id"]), int(row["participant_user_id"])): True for row in doubler_rows
+            key: any(icon.startswith("⚡") for icon in icons)
+            for key, icons in special_icons_by_match_and_user.items()
         }
 
         participants_by_match: dict[int, list[MatchCardParticipant]] = {}
         for row in participant_rows:
             match_id = int(row["match_id"])
+            user_id = int(row["user_id"])
             participant = MatchCardParticipant(
-                user_id=int(row["user_id"]),
+                user_id=user_id,
                 display_name=(
                     row["display_name"]
                     or row["username"]
@@ -202,7 +215,8 @@ class MatchService:
                 photo_mime_type=row["photo_mime_type"],
                 side_number=int(row["side_number"]),
                 side_name=row["side_name"],
-                has_doubler_on_match=doubler_by_match_and_user.get((match_id, int(row["user_id"])), False),
+                has_doubler_on_match=doubler_by_match_and_user.get((match_id, user_id), False),
+                special_icons=special_icons_by_match_and_user.get((match_id, user_id), ()),
             )
             participants_by_match.setdefault(match_id, []).append(participant)
 
@@ -268,6 +282,8 @@ class MatchService:
             related_match_id=match_id,
             created_at=utc_now_iso(),
         )
+        if self.special_service is not None:
+            self.special_service.recalculate_match_competition_state()
 
     def clear_match_result(self, *, match_id: int, new_status: str = "upcoming") -> None:
         if new_status not in {"upcoming", "live"}:
@@ -283,6 +299,8 @@ class MatchService:
             related_match_id=match_id,
             created_at=utc_now_iso(),
         )
+        if self.special_service is not None:
+            self.special_service.recalculate_match_competition_state()
 
     def activate_doubler(
         self,
@@ -292,44 +310,14 @@ class MatchService:
         actor_user_id: int,
         admin_override: bool = False,
     ) -> None:
-        match = self.repo.get_match(match_id)
-        if not match:
-            raise NotFoundError("Match not found.")
-
-        result = self.repo.get_match_result(match_id)
-        if result is not None:
-            raise ValidationError("Doubler cannot be activated after result is known.")
-
-        if match.status != "upcoming" and not admin_override:
-            raise ValidationError("Doubler can only be activated on upcoming matches.")
-
-        if not self.repo.is_participant_in_match(
+        if self.special_service is None:
+            raise ValidationError("Doubler activation is unavailable right now.")
+        self.special_service.activate_match_special(
             participant_user_id=participant_user_id,
+            special_key="doubler",
             match_id=match_id,
-        ):
-            raise ValidationError("Participant is not part of that match.")
-
-        existing = self.repo.get_doubler_activation(participant_user_id)
-        if existing:
-            raise ValidationError("This participant has already used their doubler.")
-
-        self.repo.create_doubler_activation(
-            participant_user_id=participant_user_id,
-            match_id=match_id,
-            activated_by_user_id=actor_user_id,
-            now_iso=utc_now_iso(),
-        )
-
-        profile = self.repo.get_user_with_profile(participant_user_id)
-        participant_name = (
-            profile.display_name if profile and profile.display_name else f"Player {participant_user_id}"
-        )
-        self.repo.log_activity(
-            event_type="doubler_used",
-            message=f"{participant_name} used a doubler in {match.game_type}",
-            related_match_id=match_id,
-            related_user_id=participant_user_id,
-            created_at=utc_now_iso(),
+            actor_user_id=actor_user_id,
+            admin_override=admin_override,
         )
 
     def clear_doubler(self, participant_user_id: int) -> None:
@@ -337,6 +325,8 @@ class MatchService:
         if not existing:
             raise NotFoundError("No doubler activation found for that participant.")
         self.repo.delete_doubler_activation(participant_user_id)
+        if self.special_service is not None:
+            self.special_service.sync_current_special_state()
 
     def admin_force_reassign_doubler(
         self,
@@ -363,11 +353,11 @@ class MatchService:
             raise ValidationError("Doubler can only be assigned to upcoming matches.")
 
         self.repo.delete_doubler_activation(participant_user_id)
-        self.repo.create_doubler_activation(
+        self.activate_doubler(
             participant_user_id=participant_user_id,
             match_id=match_id,
-            activated_by_user_id=admin_user_id,
-            now_iso=utc_now_iso(),
+            actor_user_id=admin_user_id,
+            admin_override=True,
         )
 
     def list_doubler_status_rows(self) -> list[dict[str, object]]:
@@ -399,7 +389,15 @@ class MatchService:
         return rows
 
     def list_eligible_upcoming_matches_for_participant(self, participant_user_id: int) -> list[MatchCard]:
-        if self.repo.get_doubler_activation(participant_user_id):
+        if self.special_service is not None:
+            self.special_service.sync_current_special_state()
+            special = self.repo.get_participant_special(
+                participant_user_id=participant_user_id,
+                special_key="doubler",
+            )
+            if not special or not special.is_available:
+                return []
+        elif self.repo.get_doubler_activation(participant_user_id):
             return []
 
         all_upcoming = self.list_matches_for_view(statuses=["upcoming"], participant_user_id=participant_user_id)

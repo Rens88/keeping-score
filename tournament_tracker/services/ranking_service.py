@@ -4,7 +4,12 @@ from dataclasses import dataclass
 from typing import Optional
 
 from tournament_tracker.models import LeaderboardRow
-from tournament_tracker.repository import SQLiteRepository
+from tournament_tracker.repository import (
+    BETTING_SOURCE_TYPE,
+    DOUBLE_OR_NOTHING_BONUS_SOURCE_TYPE,
+    MATCH_PERFORMANCE_ADJUSTMENT_SOURCE_TYPE,
+    SQLiteRepository,
+)
 
 POINTS = {
     "win": 4.0,
@@ -40,24 +45,32 @@ class RankingService:
 
     def compute_leaderboard(self) -> list[LeaderboardRow]:
         rows = self.repo.list_completed_match_player_rows()
-        doubler_rows = self.repo.list_doubler_rows()
-        doubler_match_by_user = {
-            int(row["participant_user_id"]): int(row["match_id"])
-            for row in doubler_rows
+        doubler_user_ids = {
+            activation.participant_user_id
+            for activation in self.repo.list_match_special_activations(special_key="doubler")
         }
         participants = self.repo.list_participants()
-        minigame_awards = self.repo.list_minigame_award_rows()
+        competition_awards = self.repo.list_competition_point_award_rows()
 
         stats_by_user: dict[int, ParticipantStats] = {}
 
         for participant in participants:
             stats = stats_by_user.setdefault(participant.user_id, ParticipantStats(user_id=participant.user_id))
-            stats.total_points = float(participant.registration_game_points)
+            stats.total_points = 0.0
 
-        for award_row in minigame_awards:
+        # Registration, ranking-based minigames, and future multi-competitor competitions
+        # all flow through the same generic award layer before match points are added.
+        for award_row in competition_awards:
             user_id = int(award_row["participant_user_id"])
             stats = stats_by_user.setdefault(user_id, ParticipantStats(user_id=user_id))
-            stats.total_points += float(award_row["points_awarded"])
+            points_awarded = float(award_row["points_awarded"])
+            stats.total_points += points_awarded
+            if award_row["source_type"] in {
+                MATCH_PERFORMANCE_ADJUSTMENT_SOURCE_TYPE,
+                BETTING_SOURCE_TYPE,
+                DOUBLE_OR_NOTHING_BONUS_SOURCE_TYPE,
+            }:
+                stats.bonus_points += points_awarded
 
         for row in rows:
             user_id = int(row["participant_user_id"])
@@ -76,11 +89,7 @@ class RankingService:
                 stats.losses += 1
 
             base_points = POINTS[player_outcome]
-            points = base_points
-            if doubler_match_by_user.get(user_id) == match_id:
-                points *= 2
-            stats.total_points += points
-            stats.bonus_points += points - base_points
+            stats.total_points += base_points
 
         if not stats_by_user:
             return []
@@ -124,7 +133,7 @@ class RankingService:
                     wins=item.wins,
                     draws=item.draws,
                     losses=item.losses,
-                    doubler_used=item.user_id in doubler_match_by_user,
+                    doubler_used=item.user_id in doubler_user_ids,
                 )
             )
 

@@ -107,6 +107,7 @@ class MatchParticipantView:
     photo_mime_type: Optional[str]
     side_number: int
     has_doubler_on_match: bool
+    special_icons: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -135,6 +136,56 @@ class LeaderboardRow:
     draws: int
     losses: int
     doubler_used: bool
+
+
+@dataclass(slots=True)
+class CompetitionPointAward:
+    id: int
+    participant_user_id: int
+    source_type: str
+    source_key: str
+    source_label: str
+    placement: Optional[int]
+    points_awarded: float
+    awarded_at: str
+    awarded_by_user_id: Optional[int]
+
+
+@dataclass(slots=True)
+class MatchBet:
+    id: int
+    match_id: int
+    participant_user_id: int
+    predicted_outcome: str
+    stake_points: float
+    created_at: str
+    updated_at: str
+    settled_at: Optional[str]
+    net_points: Optional[float]
+
+
+@dataclass(slots=True)
+class ParticipantSpecial:
+    participant_user_id: int
+    special_key: str
+    is_available: bool
+    is_active: bool
+    granted_at: Optional[str]
+    activated_at: Optional[str]
+    resolved_at: Optional[str]
+    payload_json: Optional[str]
+    updated_at: str
+
+
+@dataclass(slots=True)
+class MatchSpecialActivation:
+    id: int
+    participant_user_id: int
+    special_key: str
+    match_id: int
+    activated_at: str
+    activated_by_user_id: int
+    payload_json: Optional[str]
 
 
 @dataclass(slots=True)

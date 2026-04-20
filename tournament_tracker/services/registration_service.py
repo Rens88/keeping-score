@@ -16,6 +16,9 @@ LOCATION_ANSWER = "Erp"
 MAX_REGISTRATION_GAME_POINTS = 10
 REGISTRATION_GAME_SETTING_KEY = "registration_game_active"
 DEFAULT_PARTICIPANT_MOTTO = "Still warming up for the weekend."
+REGISTRATION_GAME_AWARD_SOURCE_TYPE = "registration_game"
+REGISTRATION_GAME_AWARD_SOURCE_KEY = "registration_game"
+REGISTRATION_GAME_AWARD_LABEL = "Registration Game"
 
 
 class RegistrationGameOption(TypedDict):
@@ -359,6 +362,16 @@ class RegistrationService:
                 points=awarded_points,
                 completed_at=now_iso,
                 updated_at=now_iso,
+            )
+            self.repo.upsert_competition_point_award(
+                participant_user_id=user_id,
+                source_type=REGISTRATION_GAME_AWARD_SOURCE_TYPE,
+                source_key=REGISTRATION_GAME_AWARD_SOURCE_KEY,
+                source_label=REGISTRATION_GAME_AWARD_LABEL,
+                placement=None,
+                points_awarded=float(awarded_points),
+                awarded_at=now_iso,
+                awarded_by_user_id=None,
             )
             self.repo.log_activity(
                 event_type="registration_game_completed",

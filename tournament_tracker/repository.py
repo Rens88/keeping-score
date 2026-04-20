@@ -11,17 +11,28 @@ from typing import Any, Iterable, Iterator, Optional
 
 from tournament_tracker.models import (
     ActivityItem,
+    CompetitionPointAward,
     DoublerActivation,
     Invitation,
     InvitationDisplay,
     Match,
+    MatchBet,
     MatchResult,
+    MatchSpecialActivation,
     MiniGameAward,
     MiniGameRun,
     ParticipantProfile,
+    ParticipantSpecial,
     User,
     UserWithProfile,
 )
+
+REGISTRATION_GAME_SOURCE_TYPE = "registration_game"
+REGISTRATION_GAME_SOURCE_KEY = "registration_game"
+COMPETITION_RANKING_SOURCE_TYPE = "competition_ranking"
+MATCH_PERFORMANCE_ADJUSTMENT_SOURCE_TYPE = "match_performance_adjustment"
+BETTING_SOURCE_TYPE = "betting"
+DOUBLE_OR_NOTHING_BONUS_SOURCE_TYPE = "double_or_nothing_bonus"
 
 
 class SQLiteRepository:
@@ -172,6 +183,75 @@ class SQLiteRepository:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS competition_point_awards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                participant_user_id INTEGER NOT NULL,
+                source_type TEXT NOT NULL,
+                source_key TEXT NOT NULL,
+                source_label TEXT NOT NULL,
+                placement INTEGER,
+                points_awarded REAL NOT NULL,
+                awarded_at TEXT NOT NULL,
+                awarded_by_user_id INTEGER,
+                UNIQUE(source_type, source_key, participant_user_id),
+                FOREIGN KEY (participant_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (awarded_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS match_bets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                match_id INTEGER NOT NULL,
+                participant_user_id INTEGER NOT NULL,
+                predicted_outcome TEXT NOT NULL CHECK (predicted_outcome IN ('side1_win', 'draw', 'side2_win')),
+                stake_points REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                settled_at TEXT,
+                net_points REAL,
+                UNIQUE(match_id, participant_user_id),
+                FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+                FOREIGN KEY (participant_user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS participant_specials (
+                participant_user_id INTEGER NOT NULL,
+                special_key TEXT NOT NULL,
+                is_available INTEGER NOT NULL DEFAULT 0,
+                is_active INTEGER NOT NULL DEFAULT 0,
+                granted_at TEXT,
+                activated_at TEXT,
+                resolved_at TEXT,
+                payload_json TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (participant_user_id, special_key),
+                FOREIGN KEY (participant_user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS match_special_activations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                participant_user_id INTEGER NOT NULL,
+                special_key TEXT NOT NULL,
+                match_id INTEGER NOT NULL,
+                activated_at TEXT NOT NULL,
+                activated_by_user_id INTEGER NOT NULL,
+                payload_json TEXT,
+                FOREIGN KEY (participant_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+                FOREIGN KEY (activated_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
             UPDATE users
             SET registration_game_completed = 1,
                 registration_game_points = 0,
@@ -198,6 +278,148 @@ class SQLiteRepository:
             CREATE INDEX IF NOT EXISTS idx_minigame_awards_lookup
             ON minigame_awards(game_slug, participant_user_id)
             """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_competition_point_awards_source
+            ON competition_point_awards(source_type, source_key, participant_user_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_match_bets_match
+            ON match_bets(match_id, participant_user_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_match_bets_participant
+            ON match_bets(participant_user_id, settled_at)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_participant_specials_key
+            ON participant_specials(special_key, is_available, is_active)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_match_special_activations_lookup
+            ON match_special_activations(match_id, special_key, participant_user_id)
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO app_settings (setting_key, setting_value, updated_at)
+            VALUES ('catch_up_points_gap_threshold', '15', datetime('now'))
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO participant_specials (
+                participant_user_id,
+                special_key,
+                is_available,
+                is_active,
+                granted_at,
+                activated_at,
+                resolved_at,
+                payload_json,
+                updated_at
+            )
+            SELECT
+                u.id,
+                'doubler',
+                1,
+                0,
+                u.created_at,
+                NULL,
+                NULL,
+                NULL,
+                COALESCE(u.updated_at, u.created_at, datetime('now'))
+            FROM users u
+            WHERE u.role = 'participant'
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO match_special_activations (
+                participant_user_id,
+                special_key,
+                match_id,
+                activated_at,
+                activated_by_user_id,
+                payload_json
+            )
+            SELECT
+                da.participant_user_id,
+                'doubler',
+                da.match_id,
+                da.activated_at,
+                da.activated_by_user_id,
+                NULL
+            FROM doubler_activations da
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM match_special_activations msa
+                WHERE msa.participant_user_id = da.participant_user_id
+                  AND msa.special_key = 'doubler'
+                  AND msa.match_id = da.match_id
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO competition_point_awards (
+                participant_user_id,
+                source_type,
+                source_key,
+                source_label,
+                placement,
+                points_awarded,
+                awarded_at,
+                awarded_by_user_id
+            )
+            SELECT
+                u.id,
+                ?,
+                ?,
+                'Registration Game',
+                NULL,
+                u.registration_game_points,
+                COALESCE(u.registration_game_completed_at, u.updated_at, u.created_at),
+                NULL
+            FROM users u
+            WHERE u.role = 'participant'
+              AND u.registration_game_points > 0
+            """,
+            (REGISTRATION_GAME_SOURCE_TYPE, REGISTRATION_GAME_SOURCE_KEY),
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO competition_point_awards (
+                participant_user_id,
+                source_type,
+                source_key,
+                source_label,
+                placement,
+                points_awarded,
+                awarded_at,
+                awarded_by_user_id
+            )
+            SELECT
+                ma.participant_user_id,
+                ?,
+                ma.game_slug,
+                REPLACE(ma.game_slug, '_', ' '),
+                ma.placement,
+                ma.points_awarded,
+                ma.awarded_at,
+                ma.awarded_by_user_id
+            FROM minigame_awards ma
+            """,
+            (COMPETITION_RANKING_SOURCE_TYPE,),
         )
 
     def _get_table_columns_cached(self, table_name: str) -> set[str]:
@@ -422,6 +644,64 @@ class SQLiteRepository:
             points_awarded=float(row["points_awarded"]),
             awarded_at=row["awarded_at"],
             awarded_by_user_id=int(row["awarded_by_user_id"]),
+        )
+
+    @staticmethod
+    def _row_to_competition_point_award(row: sqlite3.Row) -> CompetitionPointAward:
+        return CompetitionPointAward(
+            id=int(row["id"]),
+            participant_user_id=int(row["participant_user_id"]),
+            source_type=str(row["source_type"]),
+            source_key=str(row["source_key"]),
+            source_label=str(row["source_label"]),
+            placement=int(row["placement"]) if row["placement"] is not None else None,
+            points_awarded=float(row["points_awarded"]),
+            awarded_at=str(row["awarded_at"]),
+            awarded_by_user_id=(
+                int(row["awarded_by_user_id"])
+                if row["awarded_by_user_id"] is not None
+                else None
+            ),
+        )
+
+    @staticmethod
+    def _row_to_match_bet(row: sqlite3.Row) -> MatchBet:
+        return MatchBet(
+            id=int(row["id"]),
+            match_id=int(row["match_id"]),
+            participant_user_id=int(row["participant_user_id"]),
+            predicted_outcome=str(row["predicted_outcome"]),
+            stake_points=float(row["stake_points"]),
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+            settled_at=str(row["settled_at"]) if row["settled_at"] is not None else None,
+            net_points=float(row["net_points"]) if row["net_points"] is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_participant_special(row: sqlite3.Row) -> ParticipantSpecial:
+        return ParticipantSpecial(
+            participant_user_id=int(row["participant_user_id"]),
+            special_key=str(row["special_key"]),
+            is_available=bool(row["is_available"]),
+            is_active=bool(row["is_active"]),
+            granted_at=str(row["granted_at"]) if row["granted_at"] is not None else None,
+            activated_at=str(row["activated_at"]) if row["activated_at"] is not None else None,
+            resolved_at=str(row["resolved_at"]) if row["resolved_at"] is not None else None,
+            payload_json=str(row["payload_json"]) if row["payload_json"] is not None else None,
+            updated_at=str(row["updated_at"]),
+        )
+
+    @staticmethod
+    def _row_to_match_special_activation(row: sqlite3.Row) -> MatchSpecialActivation:
+        return MatchSpecialActivation(
+            id=int(row["id"]),
+            participant_user_id=int(row["participant_user_id"]),
+            special_key=str(row["special_key"]),
+            match_id=int(row["match_id"]),
+            activated_at=str(row["activated_at"]),
+            activated_by_user_id=int(row["activated_by_user_id"]),
+            payload_json=str(row["payload_json"]) if row["payload_json"] is not None else None,
         )
 
     def get_user_by_id(self, user_id: int) -> Optional[User]:
@@ -1128,11 +1408,33 @@ class SQLiteRepository:
         placeholders = ",".join(["?"] * len(match_ids))
         sql = f"""
             SELECT participant_user_id, match_id, activated_at
-            FROM doubler_activations
-            WHERE match_id IN ({placeholders})
+            FROM match_special_activations
+            WHERE special_key = 'doubler'
+              AND match_id IN ({placeholders})
         """
         with self.connection() as conn:
             rows = conn.execute(sql, tuple(match_ids)).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_completed_match_rows_for_scoring(self) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    m.id AS match_id,
+                    m.game_type,
+                    m.scheduled_at,
+                    m.scheduled_order,
+                    m.status,
+                    mr.outcome,
+                    mr.entered_at,
+                    mr.notes AS result_notes
+                FROM matches m
+                JOIN match_results mr ON mr.match_id = m.id
+                WHERE m.status = 'completed'
+                ORDER BY mr.entered_at ASC, m.id ASC
+                """
+            ).fetchall()
         return [dict(row) for row in rows]
 
     def upsert_match_result(
@@ -1233,38 +1535,65 @@ class SQLiteRepository:
         with self.connection() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO doubler_activations (
+                INSERT INTO match_special_activations (
                     participant_user_id,
+                    special_key,
                     match_id,
                     activated_at,
-                    activated_by_user_id
+                    activated_by_user_id,
+                    payload_json
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (?, 'doubler', ?, ?, ?, NULL)
                 """,
                 (participant_user_id, match_id, now_iso, activated_by_user_id),
             )
             activation_id = int(cursor.lastrowid)
             row = conn.execute(
-                "SELECT * FROM doubler_activations WHERE id = ?",
+                "SELECT * FROM match_special_activations WHERE id = ?",
                 (activation_id,),
             ).fetchone()
 
         if not row:
             raise RuntimeError("Failed to create doubler activation")
-        return self._row_to_doubler_activation(row)
+        return DoublerActivation(
+            id=int(row["id"]),
+            participant_user_id=int(row["participant_user_id"]),
+            match_id=int(row["match_id"]),
+            activated_at=str(row["activated_at"]),
+            activated_by_user_id=int(row["activated_by_user_id"]),
+        )
 
     def get_doubler_activation(self, participant_user_id: int) -> Optional[DoublerActivation]:
         with self.connection() as conn:
             row = conn.execute(
-                "SELECT * FROM doubler_activations WHERE participant_user_id = ?",
+                """
+                SELECT *
+                FROM match_special_activations
+                WHERE participant_user_id = ?
+                  AND special_key = 'doubler'
+                ORDER BY activated_at DESC, id DESC
+                LIMIT 1
+                """,
                 (participant_user_id,),
             ).fetchone()
-        return self._row_to_doubler_activation(row) if row else None
+        if not row:
+            return None
+        return DoublerActivation(
+            id=int(row["id"]),
+            participant_user_id=int(row["participant_user_id"]),
+            match_id=int(row["match_id"]),
+            activated_at=str(row["activated_at"]),
+            activated_by_user_id=int(row["activated_by_user_id"]),
+        )
 
     def delete_doubler_activation(self, participant_user_id: int) -> None:
         with self.connection() as conn:
             conn.execute(
-                "DELETE FROM doubler_activations WHERE participant_user_id = ?",
+                """
+                DELETE FROM match_special_activations
+                WHERE participant_user_id = ?
+                  AND special_key = 'doubler'
+                """,
                 (participant_user_id,),
             )
 
@@ -1280,9 +1609,10 @@ class SQLiteRepository:
                     m.game_type,
                     m.status,
                     m.scheduled_order
-                FROM doubler_activations da
+                FROM match_special_activations da
                 LEFT JOIN participant_profiles pp ON pp.user_id = da.participant_user_id
                 LEFT JOIN matches m ON m.id = da.match_id
+                WHERE da.special_key = 'doubler'
                 ORDER BY da.activated_at DESC
                 """
             ).fetchall()
@@ -1457,6 +1787,501 @@ class SQLiteRepository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def upsert_competition_point_award(
+        self,
+        *,
+        participant_user_id: int,
+        source_type: str,
+        source_key: str,
+        source_label: str,
+        placement: Optional[int],
+        points_awarded: float,
+        awarded_at: str,
+        awarded_by_user_id: Optional[int],
+    ) -> CompetitionPointAward:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO competition_point_awards (
+                    participant_user_id,
+                    source_type,
+                    source_key,
+                    source_label,
+                    placement,
+                    points_awarded,
+                    awarded_at,
+                    awarded_by_user_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    participant_user_id,
+                    source_type,
+                    source_key,
+                    source_label,
+                    placement,
+                    points_awarded,
+                    awarded_at,
+                    awarded_by_user_id,
+                ),
+            )
+            row = conn.execute(
+                """
+                SELECT *
+                FROM competition_point_awards
+                WHERE participant_user_id = ?
+                  AND source_type = ?
+                  AND source_key = ?
+                """,
+                (participant_user_id, source_type, source_key),
+            ).fetchone()
+
+        if not row:
+            raise RuntimeError("Failed to upsert competition point award")
+        return self._row_to_competition_point_award(row)
+
+    def replace_competition_point_awards(
+        self,
+        *,
+        source_type: str,
+        source_key: str,
+        source_label: str,
+        awards: list[tuple[int, Optional[int], float, str, Optional[int]]],
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                DELETE FROM competition_point_awards
+                WHERE source_type = ? AND source_key = ?
+                """,
+                (source_type, source_key),
+            )
+            conn.executemany(
+                """
+                INSERT INTO competition_point_awards (
+                    participant_user_id,
+                    source_type,
+                    source_key,
+                    source_label,
+                    placement,
+                    points_awarded,
+                    awarded_at,
+                    awarded_by_user_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        participant_user_id,
+                        source_type,
+                        source_key,
+                        source_label,
+                        placement,
+                        points_awarded,
+                        awarded_at,
+                        awarded_by_user_id,
+                    )
+                    for participant_user_id, placement, points_awarded, awarded_at, awarded_by_user_id in awards
+                ],
+            )
+
+    def list_competition_point_awards(
+        self,
+        *,
+        source_type: Optional[str] = None,
+        source_key: Optional[str] = None,
+    ) -> list[CompetitionPointAward]:
+        where_parts: list[str] = []
+        params: list[Any] = []
+        if source_type:
+            where_parts.append("source_type = ?")
+            params.append(source_type)
+        if source_key:
+            where_parts.append("source_key = ?")
+            params.append(source_key)
+
+        where_sql = ""
+        if where_parts:
+            where_sql = "WHERE " + " AND ".join(where_parts)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM competition_point_awards
+                {where_sql}
+                ORDER BY source_type, source_key, placement, awarded_at, id
+                """,
+                tuple(params),
+            ).fetchall()
+        return [self._row_to_competition_point_award(row) for row in rows]
+
+    def list_competition_point_award_rows(self) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    participant_user_id,
+                    source_type,
+                    source_key,
+                    source_label,
+                    placement,
+                    points_awarded,
+                    awarded_at,
+                    awarded_by_user_id
+                FROM competition_point_awards
+                ORDER BY awarded_at ASC, id ASC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_competition_point_award(
+        self,
+        *,
+        participant_user_id: int,
+        source_type: str,
+        source_key: str,
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                DELETE FROM competition_point_awards
+                WHERE participant_user_id = ?
+                  AND source_type = ?
+                  AND source_key = ?
+                """,
+                (participant_user_id, source_type, source_key),
+            )
+
+    def delete_competition_point_awards_by_source_types(self, source_types: list[str]) -> None:
+        if not source_types:
+            return
+        placeholders = ",".join(["?"] * len(source_types))
+        with self.connection() as conn:
+            conn.execute(
+                f"DELETE FROM competition_point_awards WHERE source_type IN ({placeholders})",
+                tuple(source_types),
+            )
+
+    def upsert_match_bet(
+        self,
+        *,
+        match_id: int,
+        participant_user_id: int,
+        predicted_outcome: str,
+        stake_points: float,
+        now_iso: str,
+    ) -> MatchBet:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO match_bets (
+                    match_id,
+                    participant_user_id,
+                    predicted_outcome,
+                    stake_points,
+                    created_at,
+                    updated_at,
+                    settled_at,
+                    net_points
+                )
+                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)
+                ON CONFLICT(match_id, participant_user_id)
+                DO UPDATE SET
+                    predicted_outcome = excluded.predicted_outcome,
+                    stake_points = excluded.stake_points,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    match_id,
+                    participant_user_id,
+                    predicted_outcome,
+                    stake_points,
+                    now_iso,
+                    now_iso,
+                ),
+            )
+            row = conn.execute(
+                """
+                SELECT *
+                FROM match_bets
+                WHERE match_id = ? AND participant_user_id = ?
+                """,
+                (match_id, participant_user_id),
+            ).fetchone()
+
+        if not row:
+            raise RuntimeError("Failed to upsert match bet")
+        return self._row_to_match_bet(row)
+
+    def get_match_bet(self, *, match_id: int, participant_user_id: int) -> Optional[MatchBet]:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM match_bets
+                WHERE match_id = ? AND participant_user_id = ?
+                """,
+                (match_id, participant_user_id),
+            ).fetchone()
+        return self._row_to_match_bet(row) if row else None
+
+    def list_match_bets(
+        self,
+        *,
+        match_ids: Optional[list[int]] = None,
+        participant_user_id: Optional[int] = None,
+        include_settled: bool = True,
+    ) -> list[MatchBet]:
+        where_parts: list[str] = []
+        params: list[Any] = []
+
+        if match_ids:
+            placeholders = ",".join(["?"] * len(match_ids))
+            where_parts.append(f"match_id IN ({placeholders})")
+            params.extend(match_ids)
+        if participant_user_id is not None:
+            where_parts.append("participant_user_id = ?")
+            params.append(participant_user_id)
+        if not include_settled:
+            where_parts.append("settled_at IS NULL")
+
+        where_sql = ""
+        if where_parts:
+            where_sql = "WHERE " + " AND ".join(where_parts)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM match_bets
+                {where_sql}
+                ORDER BY created_at DESC, id DESC
+                """,
+                tuple(params),
+            ).fetchall()
+        return [self._row_to_match_bet(row) for row in rows]
+
+    def settle_match_bet(
+        self,
+        *,
+        bet_id: int,
+        settled_at: Optional[str],
+        net_points: Optional[float],
+    ) -> Optional[MatchBet]:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE match_bets
+                SET settled_at = ?, net_points = ?
+                WHERE id = ?
+                """,
+                (settled_at, net_points, bet_id),
+            )
+            row = conn.execute("SELECT * FROM match_bets WHERE id = ?", (bet_id,)).fetchone()
+        return self._row_to_match_bet(row) if row else None
+
+    def sum_open_bet_stakes(self, participant_user_id: int) -> float:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COALESCE(SUM(stake_points), 0) AS total
+                FROM match_bets
+                WHERE participant_user_id = ?
+                  AND settled_at IS NULL
+                """,
+                (participant_user_id,),
+            ).fetchone()
+        return float(row["total"] if row else 0.0)
+
+    def upsert_participant_special(
+        self,
+        *,
+        participant_user_id: int,
+        special_key: str,
+        is_available: bool,
+        is_active: bool,
+        granted_at: Optional[str],
+        activated_at: Optional[str],
+        resolved_at: Optional[str],
+        payload_json: Optional[str],
+        updated_at: str,
+    ) -> ParticipantSpecial:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO participant_specials (
+                    participant_user_id,
+                    special_key,
+                    is_available,
+                    is_active,
+                    granted_at,
+                    activated_at,
+                    resolved_at,
+                    payload_json,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(participant_user_id, special_key)
+                DO UPDATE SET
+                    is_available = excluded.is_available,
+                    is_active = excluded.is_active,
+                    granted_at = excluded.granted_at,
+                    activated_at = excluded.activated_at,
+                    resolved_at = excluded.resolved_at,
+                    payload_json = excluded.payload_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    participant_user_id,
+                    special_key,
+                    1 if is_available else 0,
+                    1 if is_active else 0,
+                    granted_at,
+                    activated_at,
+                    resolved_at,
+                    payload_json,
+                    updated_at,
+                ),
+            )
+            row = conn.execute(
+                """
+                SELECT *
+                FROM participant_specials
+                WHERE participant_user_id = ? AND special_key = ?
+                """,
+                (participant_user_id, special_key),
+            ).fetchone()
+
+        if not row:
+            raise RuntimeError("Failed to upsert participant special")
+        return self._row_to_participant_special(row)
+
+    def get_participant_special(self, *, participant_user_id: int, special_key: str) -> Optional[ParticipantSpecial]:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM participant_specials
+                WHERE participant_user_id = ? AND special_key = ?
+                """,
+                (participant_user_id, special_key),
+            ).fetchone()
+        return self._row_to_participant_special(row) if row else None
+
+    def list_participant_specials(
+        self,
+        *,
+        participant_user_id: Optional[int] = None,
+        special_key: Optional[str] = None,
+    ) -> list[ParticipantSpecial]:
+        where_parts: list[str] = []
+        params: list[Any] = []
+        if participant_user_id is not None:
+            where_parts.append("participant_user_id = ?")
+            params.append(participant_user_id)
+        if special_key is not None:
+            where_parts.append("special_key = ?")
+            params.append(special_key)
+
+        where_sql = ""
+        if where_parts:
+            where_sql = "WHERE " + " AND ".join(where_parts)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM participant_specials
+                {where_sql}
+                ORDER BY participant_user_id, special_key
+                """,
+                tuple(params),
+            ).fetchall()
+        return [self._row_to_participant_special(row) for row in rows]
+
+    def create_match_special_activation(
+        self,
+        *,
+        participant_user_id: int,
+        special_key: str,
+        match_id: int,
+        activated_at: str,
+        activated_by_user_id: int,
+        payload_json: Optional[str],
+    ) -> MatchSpecialActivation:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO match_special_activations (
+                    participant_user_id,
+                    special_key,
+                    match_id,
+                    activated_at,
+                    activated_by_user_id,
+                    payload_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    participant_user_id,
+                    special_key,
+                    match_id,
+                    activated_at,
+                    activated_by_user_id,
+                    payload_json,
+                ),
+            )
+            activation_id = int(cursor.lastrowid)
+            row = conn.execute(
+                "SELECT * FROM match_special_activations WHERE id = ?",
+                (activation_id,),
+            ).fetchone()
+
+        if not row:
+            raise RuntimeError("Failed to create match special activation")
+        return self._row_to_match_special_activation(row)
+
+    def list_match_special_activations(
+        self,
+        *,
+        match_ids: Optional[list[int]] = None,
+        participant_user_id: Optional[int] = None,
+        special_key: Optional[str] = None,
+    ) -> list[MatchSpecialActivation]:
+        where_parts: list[str] = []
+        params: list[Any] = []
+        if match_ids:
+            placeholders = ",".join(["?"] * len(match_ids))
+            where_parts.append(f"match_id IN ({placeholders})")
+            params.extend(match_ids)
+        if participant_user_id is not None:
+            where_parts.append("participant_user_id = ?")
+            params.append(participant_user_id)
+        if special_key is not None:
+            where_parts.append("special_key = ?")
+            params.append(special_key)
+
+        where_sql = ""
+        if where_parts:
+            where_sql = "WHERE " + " AND ".join(where_parts)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM match_special_activations
+                {where_sql}
+                ORDER BY activated_at DESC, id DESC
+                """,
+                tuple(params),
+            ).fetchall()
+        return [self._row_to_match_special_activation(row) for row in rows]
+
+    def delete_match_special_activation(self, activation_id: int) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM match_special_activations WHERE id = ?", (activation_id,))
+
     def replace_minigame_awards(
         self,
         *,
@@ -1489,41 +2314,51 @@ class SQLiteRepository:
                     for participant_user_id, placement, points_awarded, awarded_at, awarded_by_user_id in awards
                 ],
             )
-
-    def list_minigame_awards(self, game_slug: Optional[str] = None) -> list[MiniGameAward]:
-        where_sql = ""
-        params: tuple[Any, ...] = ()
-        if game_slug:
-            where_sql = "WHERE game_slug = ?"
-            params = (game_slug,)
-
-        with self.connection() as conn:
-            rows = conn.execute(
-                f"""
-                SELECT *
-                FROM minigame_awards
-                {where_sql}
-                ORDER BY game_slug, placement, awarded_at, id
-                """,
-                params,
-            ).fetchall()
-        return [self._row_to_minigame_award(row) for row in rows]
-
-    def list_minigame_award_rows(self) -> list[dict[str, Any]]:
-        with self.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT
+        self.replace_competition_point_awards(
+            source_type=COMPETITION_RANKING_SOURCE_TYPE,
+            source_key=game_slug,
+            source_label=game_slug.replace("_", " ").title(),
+            awards=[
+                (
                     participant_user_id,
-                    game_slug,
                     placement,
                     points_awarded,
-                    awarded_at
-                FROM minigame_awards
-                ORDER BY awarded_at ASC, id ASC
-                """
-            ).fetchall()
-        return [dict(row) for row in rows]
+                    awarded_at,
+                    awarded_by_user_id,
+                )
+                for participant_user_id, placement, points_awarded, awarded_at, awarded_by_user_id in awards
+            ],
+        )
+
+    def list_minigame_awards(self, game_slug: Optional[str] = None) -> list[MiniGameAward]:
+        awards = self.list_competition_point_awards(
+            source_type=COMPETITION_RANKING_SOURCE_TYPE,
+            source_key=game_slug,
+        )
+        return [
+            MiniGameAward(
+                id=award.id,
+                game_slug=award.source_key,
+                participant_user_id=award.participant_user_id,
+                placement=int(award.placement or 0),
+                points_awarded=award.points_awarded,
+                awarded_at=award.awarded_at,
+                awarded_by_user_id=int(award.awarded_by_user_id or 0),
+            )
+            for award in awards
+        ]
+
+    def list_minigame_award_rows(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "participant_user_id": award.participant_user_id,
+                "game_slug": award.source_key,
+                "placement": award.placement,
+                "points_awarded": award.points_awarded,
+                "awarded_at": award.awarded_at,
+            }
+            for award in self.list_competition_point_awards(source_type=COMPETITION_RANKING_SOURCE_TYPE)
+        ]
 
     def get_first_admin(self) -> Optional[User]:
         with self.connection() as conn:
@@ -1540,6 +2375,16 @@ class SQLiteRepository:
             ).fetchone()
         return str(row["setting_value"]) if row else None
 
+    def list_app_settings(self, prefix: Optional[str] = None) -> dict[str, str]:
+        sql = "SELECT setting_key, setting_value FROM app_settings"
+        params: tuple[Any, ...] = ()
+        if prefix is not None:
+            sql += " WHERE setting_key LIKE ?"
+            params = (f"{prefix}%",)
+        with self.connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return {str(row["setting_key"]): str(row["setting_value"]) for row in rows}
+
     def set_app_setting(self, *, key: str, value: str, updated_at: str) -> None:
         with self.connection() as conn:
             conn.execute(
@@ -1550,6 +2395,13 @@ class SQLiteRepository:
                 DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at
                 """,
                 (key, value, updated_at),
+            )
+
+    def delete_app_setting(self, key: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "DELETE FROM app_settings WHERE setting_key = ?",
+                (key,),
             )
 
     def any_admin_exists(self) -> bool:

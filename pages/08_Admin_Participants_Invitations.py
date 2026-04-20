@@ -3,13 +3,13 @@ from __future__ import annotations
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
 
 st.set_page_config(page_title="Participants and Registration", page_icon="👥", layout="wide")
 
-services = get_services()
+services = get_runtime_services()
 admin_user = require_admin(services, current_page="pages/08_Admin_Participants_Invitations.py")
 render_sidebar(admin_user)
 
@@ -20,10 +20,11 @@ render_page_intro(
 )
 
 game_is_active = services.registration_service.is_registration_game_active()
-if not services.config.app_base_url:
+if services.config.app_base_url_is_fallback:
     st.warning(
-        "APP_BASE_URL is not configured yet, so invitation messages will use `/` as the link. "
-        "Set APP_BASE_URL when you want a shareable full web link in the copied invitation."
+        "APP_BASE_URL is not configured yet, so invitation messages will use the fallback link "
+        f"`{services.config.app_base_url}`. "
+        "Set APP_BASE_URL when you want invitations to prefer your current local or custom deployment URL."
     )
 
 
@@ -225,14 +226,21 @@ else:
             None,
         )
         if selected_status:
-            st.write(
-                f"Current status: {'used' if selected_status['doubler_used'] else 'not used'}"
-                + (
-                    f" (match #{selected_status['match_id']} - {selected_status['game_type']})"
-                    if selected_status["doubler_used"]
-                    else ""
+            selected_specials = services.special_service.get_participant_specials(selected_user_id)
+            doubler = selected_specials.get("doubler")
+            if doubler and doubler.is_active:
+                st.write(
+                    "Current status: active"
+                    + (
+                        f" (match #{selected_status['match_id']} - {selected_status['game_type']})"
+                        if selected_status["match_id"]
+                        else ""
+                    )
                 )
-            )
+            elif doubler and doubler.is_available:
+                st.write("Current status: available")
+            else:
+                st.write("Current status: unavailable")
 
         col_a, col_b = st.columns(2)
         with col_a:

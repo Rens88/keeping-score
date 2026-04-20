@@ -5,6 +5,8 @@ from pathlib import Path
 import os
 from typing import Any, Optional
 
+DEFAULT_PUBLIC_APP_BASE_URL = "https://keeping-score-teamweekend-2025-2026.streamlit.app/"
+
 
 def _read_streamlit_secret(key: str) -> Optional[str]:
     """Read a key from Streamlit secrets when running inside Streamlit."""
@@ -38,6 +40,7 @@ class AppConfig:
     app_env: str
     db_path: Path
     app_base_url: str
+    app_base_url_is_fallback: bool
     default_invite_expiry_hours: int
     photo_storage_mode: str
     photo_upload_path: Optional[Path]
@@ -81,11 +84,15 @@ def get_config() -> AppConfig:
     seed_admin_username = (_get_setting("SEED_ADMIN_USERNAME", None) or "").strip() or None
     seed_admin_email = (_get_setting("SEED_ADMIN_EMAIL", None) or "").strip().lower() or None
     seed_admin_password = (_get_setting("SEED_ADMIN_PASSWORD", None) or "").strip() or None
+    configured_app_base_url = (_get_setting("APP_BASE_URL", None) or "").strip()
+    app_base_url_is_fallback = not bool(configured_app_base_url)
+    app_base_url = (configured_app_base_url or DEFAULT_PUBLIC_APP_BASE_URL).rstrip("/")
 
     return AppConfig(
         app_env=app_env,
         db_path=Path(db_path_raw or _default_db_path_for_env(app_env)),
-        app_base_url=(_get_setting("APP_BASE_URL", "") or "").rstrip("/"),
+        app_base_url=app_base_url,
+        app_base_url_is_fallback=app_base_url_is_fallback,
         default_invite_expiry_hours=default_invite_expiry,
         photo_storage_mode=photo_storage_mode,
         photo_upload_path=Path(photo_upload_path_raw) if photo_upload_path_raw else None,

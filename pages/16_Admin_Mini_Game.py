@@ -5,7 +5,7 @@ from datetime import datetime
 import streamlit as st
 
 from tournament_tracker.bootstrap import get_runtime_services
-from tournament_tracker.branding import render_bottom_decoration, render_page_intro
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.services.minigame_service import DEFAULT_AWARD_SCHEME
 from tournament_tracker.session import render_sidebar, require_admin
@@ -49,26 +49,47 @@ current_scheme = ",".join(str(value) for value in (game_config.award_scheme or D
 with st.container(border=True):
     st.subheader("Instellingen")
     with st.form("admin_whack_settings"):
+        render_form_field_label(
+            "Whack-a-mole actief",
+            "Uit: spelers zien alleen de status. Aan: de game volgt het open- en sluitmoment hieronder.",
+        )
         enabled = st.toggle(
             "Whack-a-mole actief",
             value=game_config.enabled,
-            help="Uit: spelers zien alleen de status. Aan: de game volgt het open- en sluitmoment hieronder.",
+            label_visibility="collapsed",
         )
         col1, col2 = st.columns(2)
         with col1:
-            open_date = st.date_input("Open op", value=current_open.date())
-            open_time = st.time_input("Open om", value=current_open.time().replace(second=0, microsecond=0))
+            render_form_field_label("Open op")
+            open_date = st.date_input("Open op", value=current_open.date(), label_visibility="collapsed")
+            render_form_field_label("Open om")
+            open_time = st.time_input(
+                "Open om",
+                value=current_open.time().replace(second=0, microsecond=0),
+                label_visibility="collapsed",
+            )
         with col2:
-            deadline_date = st.date_input("Deadline op", value=current_deadline.date())
+            render_form_field_label("Deadline op")
+            deadline_date = st.date_input(
+                "Deadline op",
+                value=current_deadline.date(),
+                label_visibility="collapsed",
+            )
+            render_form_field_label("Deadline om")
             deadline_time = st.time_input(
                 "Deadline om",
                 value=current_deadline.time().replace(second=0, microsecond=0),
+                label_visibility="collapsed",
             )
 
+        render_form_field_label(
+            "Puntenschema voor weekendleaderboard",
+            "Komma-gescheiden punten per plek, bijvoorbeeld 5,3,1 of 5,4,3,2,1.",
+        )
         award_scheme_input = st.text_input(
             "Puntenschema voor weekendleaderboard",
             value=current_scheme,
-            help="Komma-gescheiden punten per plek, bijvoorbeeld 5,3,1 of 5,4,3,2,1.",
+            label_visibility="collapsed",
         )
         submitted = st.form_submit_button("Instellingen opslaan", width="stretch", type="primary")
 

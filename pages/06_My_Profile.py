@@ -3,14 +3,14 @@ from __future__ import annotations
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_login
 from tournament_tracker.ui import render_stat_tiles
 
 st.set_page_config(page_title="My Profile", page_icon="👤", layout="wide")
 
-services = get_services()
+services = get_runtime_services()
 user = require_login(services, current_page="pages/06_My_Profile.py")
 render_sidebar(user)
 
@@ -33,11 +33,18 @@ with st.container(border=True):
         st.write(profile.motto or "No motto yet")
         st.caption(f"Role: {profile.role}")
         if user.role == "participant":
-            activation = services.repo.get_doubler_activation(user.id)
-            if activation:
-                st.caption(f"Doubler: used on match #{activation.match_id}")
-            else:
+            specials = services.special_service.get_participant_specials(user.id)
+            doubler = specials.get("doubler")
+            if doubler and doubler.is_active:
+                activation = services.repo.get_doubler_activation(user.id)
+                if activation:
+                    st.caption(f"Doubler: active on match #{activation.match_id}")
+                else:
+                    st.caption("Doubler: active")
+            elif doubler and doubler.is_available:
                 st.caption("Doubler: available")
+            else:
+                st.caption("Doubler: currently unavailable")
 
 if user.role == "participant":
     stats = services.ranking_service.get_participant_stats(user.id)

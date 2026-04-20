@@ -14,6 +14,7 @@ from tournament_tracker.services.errors import ValidationError
 
 APP_TIMEZONE = ZoneInfo("Europe/Amsterdam")
 WHACK_A_MOLE_SLUG = "whack_a_mole"
+COMPETITION_RANKING_SOURCE_TYPE = "competition_ranking"
 DEFAULT_AWARD_SCHEME = (5, 3, 1)
 DEFAULT_OPEN_DELAY_HOURS = 1
 DEFAULT_DEADLINE_DELAY_DAYS = 2
@@ -197,7 +198,10 @@ class MiniGameService:
         runs = self.repo.list_minigame_runs(WHACK_A_MOLE_SLUG)
         awards_by_user = {
             award.participant_user_id: float(award.points_awarded)
-            for award in self.repo.list_minigame_awards(WHACK_A_MOLE_SLUG)
+            for award in self.repo.list_competition_point_awards(
+                source_type=COMPETITION_RANKING_SOURCE_TYPE,
+                source_key=WHACK_A_MOLE_SLUG,
+            )
         }
         if not runs:
             return []
@@ -276,7 +280,10 @@ class MiniGameService:
             attempts += 1
             best_score = max(best_score, int(row["score"]))
 
-        for award in self.repo.list_minigame_awards(WHACK_A_MOLE_SLUG):
+        for award in self.repo.list_competition_point_awards(
+            source_type=COMPETITION_RANKING_SOURCE_TYPE,
+            source_key=WHACK_A_MOLE_SLUG,
+        ):
             if award.participant_user_id == participant_user_id:
                 awarded_points += float(award.points_awarded)
 

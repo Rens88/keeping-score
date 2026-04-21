@@ -79,7 +79,7 @@ with st.container(border=True):
         "een kans om je gok in te vullen."
     )
     st.write(
-        "Elke goed beantwoorde vraag levert **1.0 punt** op. Zodra je `Erp` goed raadt, tellen alle resterende vragen meteen mee "
+        "Elke goed beantwoorde vraag levert **1.0 punt** op. Zodra je de bestemming goed raadt, tellen alle resterende vragen meteen mee "
         "als goed voor **1.5 punt per stuk**."
     )
     st.write(

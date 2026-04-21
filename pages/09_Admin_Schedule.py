@@ -5,14 +5,14 @@ from datetime import datetime, time
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.services.match_service import DEFAULT_GAME_TYPES
 from tournament_tracker.session import render_sidebar, require_admin
 
 st.set_page_config(page_title="Manage Schedule", page_icon="🗓️", layout="wide")
 
-services = get_services()
+services = get_runtime_services()
 admin_user = require_admin(services, current_page="pages/09_Admin_Schedule.py")
 render_sidebar(admin_user)
 
@@ -45,7 +45,47 @@ def _parse_iso_to_datetime(value: str | None) -> datetime | None:
         return None
 
 
-create_tab, edit_tab = st.tabs(["Create Match", "Edit Existing Match"])
+def _render_schedule_inputs(
+    *,
+    mode_key: str,
+    existing_dt: datetime | None = None,
+    default_with_time: bool = True,
+) -> datetime | None:
+    render_form_field_label(
+        "Kickoff date and time",
+        "Used for the match overview and for locking pre-match actions like betting and specials.",
+    )
+    schedule_options = ["Set date and time now", "Leave date and time empty for now"]
+    default_index = 0 if (existing_dt is not None or default_with_time) else 1
+    schedule_mode = st.selectbox(
+        "Kickoff date and time",
+        schedule_options,
+        index=default_index,
+        key=f"{mode_key}_schedule_mode",
+        label_visibility="collapsed",
+    )
+    if schedule_mode != schedule_options[0]:
+        return None
+
+    default_date = existing_dt.date() if existing_dt else datetime.now().date()
+    default_time = (
+        existing_dt.time().replace(second=0, microsecond=0)
+        if existing_dt
+        else time(hour=12, minute=0)
+    )
+    col_date, col_time = st.columns(2)
+    with col_date:
+        render_form_field_label("Date")
+        dt_date = st.date_input("Date", value=default_date, key=f"{mode_key}_date", label_visibility="collapsed")
+    with col_time:
+        render_form_field_label("Time")
+        dt_time = st.time_input("Time", value=default_time, key=f"{mode_key}_time", label_visibility="collapsed")
+    return datetime.combine(dt_date, dt_time)
+
+
+st.caption("Create new matches in the first tab. Use the other tabs to update or remove an existing match.")
+
+create_tab, edit_tab, delete_tab = st.tabs(["Create Match", "Edit Match", "Delete Match"])
 
 with create_tab:
     with st.form("create_match_form"):
@@ -72,18 +112,7 @@ with create_tab:
             step=1,
             label_visibility="collapsed",
         )
-        has_schedule_time = st.checkbox("Set date/time", value=False)
-        if has_schedule_time:
-            col_date, col_time = st.columns(2)
-            with col_date:
-                render_form_field_label("Date")
-                dt_date = st.date_input("Date", label_visibility="collapsed")
-            with col_time:
-                render_form_field_label("Time")
-                dt_time = st.time_input("Time", value=time(hour=12, minute=0), label_visibility="collapsed")
-            schedule_dt = datetime.combine(dt_date, dt_time)
-        else:
-            schedule_dt = None
+        schedule_dt = _render_schedule_inputs(mode_key="create", default_with_time=True)
 
         render_form_field_label("Side 1 name")
         side1_name = st.text_input("Side 1 name", value="", label_visibility="collapsed")
@@ -101,7 +130,7 @@ with create_tab:
     if create_submit:
         game_type = custom_game_type.strip() if game_type_choice == "Other" else game_type_choice
         try:
-            services.match_service.create_match(
+            created_match = services.match_service.create_match(
                 game_type=game_type,
                 scheduled_at=schedule_dt,
                 scheduled_order=int(scheduled_order),
@@ -112,8 +141,7 @@ with create_tab:
                 side1_participant_ids=[participant_label_to_id[label] for label in side1_labels],
                 side2_participant_ids=[participant_label_to_id[label] for label in side2_labels],
             )
-            st.success("Match created.")
-            st.rerun()
+            st.success(f"Match #{created_match.id} created.")
         except ValidationError as exc:
             st.error(str(exc))
 
@@ -126,9 +154,9 @@ with edit_tab:
             f"#{card.match_id} - {card.game_type} ({card.status})": card.match_id
             for card in cards
         }
-        render_form_field_label("Select match")
+        render_form_field_label("Select match to edit")
         selected_label = st.selectbox(
-            "Select match",
+            "Select match to edit",
             list(label_to_match_id.keys()),
             label_visibility="collapsed",
         )
@@ -136,8 +164,6 @@ with edit_tab:
         selected_card = next(card for card in cards if card.match_id == selected_match_id)
 
         existing_dt = _parse_iso_to_datetime(selected_card.scheduled_at)
-        default_date = existing_dt.date() if existing_dt else datetime.utcnow().date()
-        default_time = existing_dt.time() if existing_dt else time(hour=12, minute=0)
 
         side1_current_ids = [
             p.user_id for p in selected_card.sides[1]["participants"] if hasattr(p, "user_id")
@@ -181,22 +207,11 @@ with edit_tab:
                 key="edit_order",
                 label_visibility="collapsed",
             )
-            has_schedule_time = st.checkbox(
-                "Set date/time",
-                value=existing_dt is not None,
-                key="edit_has_schedule",
+            schedule_dt = _render_schedule_inputs(
+                mode_key="edit",
+                existing_dt=existing_dt,
+                default_with_time=existing_dt is not None,
             )
-            if has_schedule_time:
-                col_date, col_time = st.columns(2)
-                with col_date:
-                    render_form_field_label("Date")
-                    dt_date = st.date_input("Date", value=default_date, key="edit_date", label_visibility="collapsed")
-                with col_time:
-                    render_form_field_label("Time")
-                    dt_time = st.time_input("Time", value=default_time, key="edit_time", label_visibility="collapsed")
-                schedule_dt = datetime.combine(dt_date, dt_time)
-            else:
-                schedule_dt = None
 
             render_form_field_label("Side 1 name")
             side1_name = st.text_input(
@@ -239,7 +254,7 @@ with edit_tab:
         if update_submit:
             game_type = custom_game_type.strip() if game_type_choice == "Other" else game_type_choice
             try:
-                services.match_service.update_match(
+                updated_match = services.match_service.update_match(
                     match_id=selected_match_id,
                     game_type=game_type,
                     scheduled_at=schedule_dt,
@@ -250,18 +265,36 @@ with edit_tab:
                     side1_participant_ids=[participant_label_to_id[label] for label in side1_labels],
                     side2_participant_ids=[participant_label_to_id[label] for label in side2_labels],
                 )
-                st.success("Match updated.")
-                st.rerun()
+                st.success(f"Match #{updated_match.id} updated.")
             except (ValidationError, NotFoundError) as exc:
                 st.error(str(exc))
 
-        st.divider()
-        confirm_delete = st.checkbox("I understand this will permanently delete the selected match.")
+with delete_tab:
+    cards = services.match_service.list_matches_for_view()
+    if not cards:
+        st.info("No matches yet.")
+    else:
+        label_to_match_id = {
+            f"#{card.match_id} - {card.game_type} ({card.status})": card.match_id
+            for card in cards
+        }
+        render_form_field_label("Select match to delete")
+        selected_label = st.selectbox(
+            "Select match to delete",
+            list(label_to_match_id.keys()),
+            key="delete_match_select",
+            label_visibility="collapsed",
+        )
+        selected_match_id = label_to_match_id[selected_label]
+        st.warning("Deleting a match permanently removes the match and its related data.")
+        confirm_delete = st.checkbox(
+            "I understand this will permanently delete the selected match.",
+            key="delete_match_confirm",
+        )
         if st.button("Delete selected match", type="secondary", width="stretch", disabled=not confirm_delete):
             try:
                 services.match_service.delete_match(selected_match_id)
-                st.success("Match deleted.")
-                st.rerun()
+                st.success(f"Match #{selected_match_id} deleted.")
             except NotFoundError as exc:
                 st.error(str(exc))
 

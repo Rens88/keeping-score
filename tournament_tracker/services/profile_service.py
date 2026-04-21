@@ -25,7 +25,7 @@ class ProfileService:
         motto: str,
         photo_blob: Optional[bytes],
         photo_mime_type: Optional[str],
-        keep_existing_photo: bool,
+        delete_existing_photo: bool,
         allow_name_change: bool = True,
     ) -> UserWithProfile:
         user = self.repo.get_user_by_id(user_id)
@@ -50,12 +50,18 @@ class ProfileService:
         if len(clean_motto) < 1 or len(clean_motto) > 160:
             raise ValidationError("Motto must be between 1 and 160 characters.")
 
-        if keep_existing_photo and existing_profile:
+        if photo_blob:
+            effective_photo_blob = photo_blob
+            effective_photo_type = photo_mime_type
+        elif delete_existing_photo:
+            effective_photo_blob = None
+            effective_photo_type = None
+        elif existing_profile:
             effective_photo_blob = existing_profile.photo_blob
             effective_photo_type = existing_profile.photo_mime_type
         else:
-            effective_photo_blob = photo_blob
-            effective_photo_type = photo_mime_type
+            effective_photo_blob = None
+            effective_photo_type = None
 
         self.repo.upsert_participant_profile(
             user_id=user_id,

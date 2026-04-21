@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 title Weekend Tournament Tracker LAN Launcher
 
@@ -89,14 +89,14 @@ if errorlevel 1 (
         call :find_next_free_port "%STREAMLIT_SERVER_PORT%"
         if errorlevel 1 (
             set "FAIL_STEP=find_free_port"
-            echo [ERROR] Could not find a free port between %REQUESTED_PORT% and %PORT_SCAN_LAST%.
+            echo [ERROR] Could not find a free port between !REQUESTED_PORT! and !PORT_SCAN_LAST!.
             goto :fail
         )
-        echo [OK] Switching to available port: %STREAMLIT_SERVER_PORT%
-        echo [WARN] If you use a port-specific firewall rule, also allow port %STREAMLIT_SERVER_PORT%.
+        echo [OK] Switching to available port: !STREAMLIT_SERVER_PORT!
+        echo [WARN] If you use a port-specific firewall rule, also allow port !STREAMLIT_SERVER_PORT!.
     ) else (
         set "FAIL_STEP=check_port"
-        echo [ERROR] Requested port %STREAMLIT_SERVER_PORT% is not available.
+        echo [ERROR] Requested port !STREAMLIT_SERVER_PORT! is not available.
         echo [INFO] Choose another port before launching, for example:
         echo        set STREAMLIT_SERVER_PORT=8502
         goto :fail

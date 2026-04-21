@@ -299,3 +299,12 @@ Requested Changes (summarized)
 - Add an explicit `Delete existing photo` checkbox that defaults to off and only applies when no new photo is uploaded.
 - Make profile saves always replace the current photo when a new upload is present, preserve the current photo when no upload is provided and delete is off, and remove the photo when no upload is provided and delete is on.
 - Give direct feedback on whether this mechanism is a good UX choice.
+
+54. Admin schedule discoverability fix:
+- Make the admin schedule page clearer so it is obvious how to edit or delete an existing match.
+- Expose scheduling more clearly during match creation/editing by showing the date/time workflow prominently instead of hiding it behind an easy-to-miss control.
+
+55. Admin schedule submit-feedback and launcher log fix:
+- Fix the admin schedule page so create/update/delete actions keep their success feedback visible instead of immediately forcing an extra rerun that makes the button feel broken.
+- Remove the deprecated `datetime.utcnow()` usage from the schedule page.
+- Fix the Windows LAN launcher log so the reported fallback port matches the actual port chosen after scanning for a free one.

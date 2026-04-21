@@ -77,7 +77,10 @@ if user.role == "participant":
             type=["png", "jpg", "jpeg", "webp"],
             label_visibility="collapsed",
         )
-        keep_existing = st.checkbox("Keep existing photo if no new upload", value=True)
+        st.caption("Uploading a new photo replaces the current one. Leave it empty to keep your current photo.")
+        delete_existing_photo = False
+        if profile.photo_blob:
+            delete_existing_photo = st.checkbox("Delete existing photo", value=False)
         save = st.form_submit_button("Save profile", width="stretch")
 
     if save:
@@ -88,7 +91,7 @@ if user.role == "participant":
                 motto=motto,
                 photo_blob=new_photo.getvalue() if new_photo else None,
                 photo_mime_type=new_photo.type if new_photo else None,
-                keep_existing_photo=keep_existing,
+                delete_existing_photo=delete_existing_photo,
                 allow_name_change=False,
             )
             st.success("Profile updated.")

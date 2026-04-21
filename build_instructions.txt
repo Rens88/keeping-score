@@ -289,3 +289,13 @@ Requested Changes (summarized)
 - Update registration question 3 to the longer Dutch province riddle while keeping the same correct answer set.
 - Replace the answer options for questions 4 and 5 with the newly supplied city/place lists while preserving the intended correct options.
 - Update the hint for question 9 to the new phrasing about rhyming with a Groningse heuvel.
+
+52. Cloud profile-photo upload investigation:
+- Inspect why participant profile-photo updates on Streamlit Community Cloud appear to save and then immediately revert.
+- Identify the most likely code-level cause and note any secondary cloud-specific risks, without changing the feature yet.
+
+53. Profile photo replace/delete flow:
+- Remove the misleading keep-existing-photo checkbox from the profile page.
+- Add an explicit `Delete existing photo` checkbox that defaults to off and only applies when no new photo is uploaded.
+- Make profile saves always replace the current photo when a new upload is present, preserve the current photo when no upload is provided and delete is off, and remove the photo when no upload is provided and delete is on.
+- Give direct feedback on whether this mechanism is a good UX choice.

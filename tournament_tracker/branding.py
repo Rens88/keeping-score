@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from html import escape
 import json
+import mimetypes
 from pathlib import Path
 import random
 from textwrap import dedent
@@ -55,6 +56,10 @@ def apply_cangeroes_theme() -> None:
                 --uc-danger-bg: #fef2f2;
                 --uc-neutral: #94a3b8;
                 --uc-neutral-bg: #f8fafc;
+                --uc-hover-bg: #ead8c5;
+                --uc-hover-text: #2f241b;
+                --uc-panel-header-bg: #e6d2bf;
+                --uc-panel-header-open-bg: #dcc4ac;
                 --uc-table-bg: #ffffff;
                 --uc-table-header-bg: #f1f5f9;
                 --uc-table-header-focus: #e2e8f0;
@@ -105,6 +110,10 @@ def apply_cangeroes_theme() -> None:
                     --uc-danger-bg: #32171a;
                     --uc-neutral: #cbd5e1;
                     --uc-neutral-bg: #1d2733;
+                    --uc-hover-bg: #362922;
+                    --uc-hover-text: #f8f4ef;
+                    --uc-panel-header-bg: #2d231d;
+                    --uc-panel-header-open-bg: #372a22;
                     --uc-table-bg: #1d1815;
                     --uc-table-header-bg: #2b241f;
                     --uc-table-header-focus: #382e27;
@@ -456,8 +465,8 @@ def apply_cangeroes_theme() -> None:
             .stButton > button:hover,
             .stDownloadButton > button:hover,
             .stFormSubmitButton > button:hover {
-                background: var(--uc-orange-soft) !important;
-                color: var(--uc-text) !important;
+                background: var(--uc-hover-bg) !important;
+                color: var(--uc-hover-text) !important;
                 border-color: var(--uc-orange) !important;
                 transform: translateY(-1px);
             }
@@ -522,21 +531,27 @@ def apply_cangeroes_theme() -> None:
             /* Tabs contrast fix (unselected tabs were fading into background). */
             [data-baseweb="tab-list"] {
                 gap: 0.4rem;
-                background: rgba(255, 243, 232, 0.8);
-                border: 1px solid rgba(139, 115, 85, 0.14);
+                background: rgba(255, 243, 232, 0.92);
+                border: 1px solid rgba(139, 115, 85, 0.2);
                 border-radius: 16px;
                 padding: 0.35rem;
                 box-shadow: var(--uc-shadow-soft);
             }
 
             [data-baseweb="tab-list"] button[role="tab"] {
-                color: var(--uc-muted) !important;
-                background: transparent !important;
+                color: var(--uc-orange-dark) !important;
+                background: #f1dfcc !important;
+                border: 1px solid rgba(139, 115, 85, 0.28) !important;
                 border-radius: 10px !important;
                 border-bottom: 0 !important;
                 opacity: 1 !important;
                 padding: 0.55rem 0.9rem !important;
-                font-weight: 700 !important;
+                font-weight: 800 !important;
+            }
+
+            [data-baseweb="tab-list"] button[role="tab"]:hover {
+                color: var(--uc-orange-dark) !important;
+                background: #ead4be !important;
             }
 
             [data-baseweb="tab-list"] button[role="tab"][aria-selected="true"] {
@@ -544,6 +559,7 @@ def apply_cangeroes_theme() -> None:
                 background: var(--uc-white) !important;
                 font-weight: 800 !important;
                 box-shadow: var(--uc-shadow-soft);
+                border: 1px solid rgba(234, 88, 12, 0.22) !important;
             }
 
             div[data-testid="stMetric"] {
@@ -599,6 +615,53 @@ def apply_cangeroes_theme() -> None:
                 opacity: 1 !important;
             }
 
+            [data-testid="stExpander"] {
+                border-radius: 16px;
+                overflow: hidden;
+            }
+
+            [data-testid="stExpander"] details {
+                background: var(--uc-surface-strong) !important;
+                border: 1px solid rgba(139, 115, 85, 0.18) !important;
+                border-radius: 16px !important;
+                box-shadow: var(--uc-shadow-soft);
+            }
+
+            [data-testid="stExpander"] summary {
+                background: var(--uc-panel-header-bg) !important;
+                color: var(--uc-text) !important;
+                border-radius: 16px !important;
+            }
+
+            [data-testid="stExpander"] summary:hover {
+                background: var(--uc-hover-bg) !important;
+                color: var(--uc-hover-text) !important;
+            }
+
+            [data-testid="stExpander"] details[open] > summary {
+                background: var(--uc-panel-header-open-bg) !important;
+                color: var(--uc-text) !important;
+                border-bottom-left-radius: 0 !important;
+                border-bottom-right-radius: 0 !important;
+                border-bottom: 1px solid rgba(139, 115, 85, 0.18) !important;
+            }
+
+            [data-testid="stExpander"] summary *,
+            [data-testid="stExpander"] summary:hover *,
+            [data-testid="stExpander"] details[open] > summary * {
+                color: inherit !important;
+                -webkit-text-fill-color: inherit !important;
+            }
+
+            [data-testid="stExpanderDetails"] {
+                background: var(--uc-surface-strong) !important;
+                color: var(--uc-text) !important;
+            }
+
+            [data-testid="stExpanderDetails"] * {
+                color: inherit;
+            }
+
             [data-testid="stFileUploader"] {
                 background: var(--uc-surface-strong);
                 border: 1px solid rgba(139, 115, 85, 0.16);
@@ -621,10 +684,18 @@ def apply_cangeroes_theme() -> None:
             [data-testid="stFileUploaderDropzone"] button:hover,
             [data-testid="stFileUploaderDropzone"] button:focus,
             [data-testid="stFileUploaderDropzone"] button:focus-visible {
-                background: var(--uc-surface-muted) !important;
-                color: var(--uc-text) !important;
+                background: var(--uc-hover-bg) !important;
+                color: var(--uc-hover-text) !important;
                 border: 1px solid var(--uc-border-strong) !important;
                 box-shadow: none !important;
+            }
+
+            [data-testid="stFileUploaderDropzone"] button *,
+            [data-testid="stFileUploaderDropzone"] button:hover *,
+            [data-testid="stFileUploaderDropzone"] button:focus *,
+            [data-testid="stFileUploaderDropzone"] button:focus-visible * {
+                color: inherit !important;
+                -webkit-text-fill-color: inherit !important;
             }
 
             [data-testid="stFileUploaderDropzoneInstructions"],
@@ -792,6 +863,15 @@ def apply_cangeroes_theme() -> None:
             .uc-decoration-media {
                 border-radius: 12px;
                 overflow: hidden;
+                background: var(--uc-surface-strong);
+                box-shadow: var(--uc-shadow-soft);
+            }
+
+            .uc-bottom-media {
+                width: 100%;
+                max-height: 32rem;
+                object-fit: cover;
+                display: block;
             }
 
             .uc-release-footer {
@@ -854,6 +934,10 @@ def apply_cangeroes_theme() -> None:
                     font-size: 0.72rem;
                 }
 
+                .uc-bottom-media {
+                    max-height: 24rem;
+                }
+
             }
 
             @media (max-width: 560px) {
@@ -865,6 +949,10 @@ def apply_cangeroes_theme() -> None:
 
                 .uc-hero-logo {
                     max-width: 3.9rem;
+                }
+
+                .uc-bottom-media {
+                    max-height: 20rem;
                 }
 
                 form,
@@ -963,16 +1051,21 @@ def render_form_field_label(label: str, helper: str | None = None) -> None:
     )
 
 
-def _render_autoplay_video(video_bytes: bytes) -> None:
+def _image_data_url(image_bytes: bytes, suffix: str) -> str:
+    mime_type = mimetypes.guess_type(f"file{suffix}")[0] or "image/jpeg"
+    encoded = base64.b64encode(image_bytes).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _render_autoplay_video(video_bytes: bytes) -> str:
     encoded = base64.b64encode(video_bytes).decode("ascii")
-    st.markdown(
+    return (
         f"""
-        <video autoplay muted loop playsinline controls style="width:100%; border-radius:12px; display:block;">
+        <video class="uc-bottom-media" autoplay muted loop playsinline controls>
             <source src="data:video/mp4;base64,{encoded}" type="video/mp4">
             Your browser does not support the video tag.
         </video>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -1013,21 +1106,30 @@ def render_bottom_decoration() -> None:
     media_paths = _list_decoration_media()
     chosen: Path | None = random.choice(media_paths) if media_paths else None
 
-    render_html_block(
-        """
-<div class="uc-decoration-wrap">
-    <div class="uc-decoration-media"></div>
-</div>
-        """
-    )
-
+    media_markup = ""
     if chosen is None:
-        st.image(CANGEROES_FALLBACK_HERO_URL, width="stretch")
+        media_markup = (
+            f'<img class="uc-bottom-media" src="{escape(CANGEROES_FALLBACK_HERO_URL)}" '
+            'alt="Weekend decoration">'
+        )
     else:
         suffix = chosen.suffix.lower()
         if suffix in _VIDEO_EXTENSIONS:
-            _render_autoplay_video(chosen.read_bytes())
+            media_markup = _render_autoplay_video(chosen.read_bytes())
         else:
-            st.image(str(chosen), width="stretch")
+            media_markup = (
+                f'<img class="uc-bottom-media" src="{_image_data_url(chosen.read_bytes(), suffix)}" '
+                'alt="Weekend decoration">'
+            )
+
+    render_html_block(
+        f"""
+<div class="uc-decoration-wrap">
+    <div class="uc-decoration-media">
+        {media_markup}
+    </div>
+</div>
+        """
+    )
 
     _render_release_footer()

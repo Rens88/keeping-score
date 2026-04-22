@@ -2,106 +2,24 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
+from tournament_tracker.branding import render_bottom_decoration, render_page_intro
 from tournament_tracker.bootstrap import get_runtime_services
-from tournament_tracker.services.errors import NotFoundError, ValidationError
 from tournament_tracker.session import render_sidebar, require_admin
-from tournament_tracker.ui import OUTCOME_BADGE
 
-st.set_page_config(page_title="Enter or Edit Results", page_icon="✅", layout="wide")
+st.set_page_config(page_title="Results Moved", page_icon="✅", layout="wide")
 
 services = get_runtime_services()
 admin_user = require_admin(services, current_page="pages/10_Admin_Results.py")
 render_sidebar(admin_user)
 
-render_page_intro("Enter or Edit Results", "Record outcomes, add notes, or reset a match back to upcoming or live.", eyebrow="Admin")
-
-cards = services.match_service.list_matches_for_view()
-if not cards:
-    st.info("No matches available.")
-    st.stop()
-
-label_to_match_id = {
-    f"#{card.match_id} - {card.game_type} ({card.status})": card.match_id
-    for card in cards
-}
-render_form_field_label("Select match")
-selected_label = st.selectbox("Select match", list(label_to_match_id.keys()), label_visibility="collapsed")
-selected_match_id = label_to_match_id[selected_label]
-selected_card = next(card for card in cards if card.match_id == selected_match_id)
-
-st.subheader(f"Match #{selected_card.match_id}: {selected_card.game_type}")
-col1, col2 = st.columns(2)
-with col1:
-    side_name = selected_card.sides[1]["side_name"] or "Side 1"
-    st.markdown(f"**{side_name}**")
-    for p in selected_card.sides[1]["participants"]:
-        if hasattr(p, "display_name"):
-            suffix = ""
-            icons = list(getattr(p, "special_icons", ()))
-            if icons:
-                suffix = " " + " ".join(icons)
-            elif p.has_doubler_on_match:
-                suffix = " ⚡x2"
-            st.write(f"- {p.display_name}{suffix}")
-with col2:
-    side_name = selected_card.sides[2]["side_name"] or "Side 2"
-    st.markdown(f"**{side_name}**")
-    for p in selected_card.sides[2]["participants"]:
-        if hasattr(p, "display_name"):
-            suffix = ""
-            icons = list(getattr(p, "special_icons", ()))
-            if icons:
-                suffix = " " + " ".join(icons)
-            elif p.has_doubler_on_match:
-                suffix = " ⚡x2"
-            st.write(f"- {p.display_name}{suffix}")
-
-outcome_options = ["side1_win", "draw", "side2_win"]
-default_outcome_index = outcome_options.index(selected_card.outcome) if selected_card.outcome in outcome_options else 0
-
-with st.form("result_form"):
-    render_form_field_label("Result")
-    outcome = st.selectbox(
-        "Result",
-        outcome_options,
-        index=default_outcome_index,
-        format_func=lambda o: OUTCOME_BADGE.get(o, o),
-        label_visibility="collapsed",
-    )
-    render_form_field_label("Notes")
-    notes = st.text_area("Notes", value=selected_card.result_notes or "", label_visibility="collapsed")
-    submit_result = st.form_submit_button("Save result", width="stretch")
-
-if submit_result:
-    try:
-        services.match_service.set_match_result(
-            match_id=selected_match_id,
-            outcome=outcome,
-            entered_by_user_id=admin_user.id,
-            notes=notes,
-            mark_completed=True,
-        )
-        st.success("Result saved.")
-        st.rerun()
-    except (ValidationError, NotFoundError) as exc:
-        st.error(str(exc))
-
-st.divider()
-st.subheader("Reset result")
-render_form_field_label("Status after clearing result")
-new_status = st.selectbox(
-    "Status after clearing result",
-    ["upcoming", "live"],
-    index=0,
-    label_visibility="collapsed",
+render_page_intro(
+    "Results Moved",
+    "Head-to-head and multi-competitor results now live inside Manage Schedule, each under their own Results tab.",
+    eyebrow="Admin",
 )
-if st.button("Clear result for this match", width="stretch", type="secondary"):
-    try:
-        services.match_service.clear_match_result(match_id=selected_match_id, new_status=new_status)
-        st.success("Result cleared.")
-        st.rerun()
-    except (ValidationError, NotFoundError) as exc:
-        st.error(str(exc))
+
+st.info("Open Manage Schedule to create, edit, enter results, remove results, or delete both competition types from one place.")
+if st.button("Open Manage Schedule", width="stretch", type="primary"):
+    st.switch_page("pages/09_Admin_Schedule.py")
 
 render_bottom_decoration()

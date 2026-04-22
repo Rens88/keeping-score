@@ -58,7 +58,7 @@ if st.button("Import backup and replace current state", type="primary", width="s
         try:
             services.backup_service.import_snapshot(uploaded_backup.getvalue())
 
-            logout_user()
+            logout_user(services)
             st.cache_data.clear()
             st.cache_resource.clear()
 
@@ -94,7 +94,7 @@ with st.container(border=True):
         else:
             try:
                 services.backup_service.load_demo_halfway_state()
-                logout_user()
+                logout_user(services)
                 st.cache_data.clear()
                 st.cache_resource.clear()
                 st.success("The fake half-way state has been loaded. Please log in again.")
@@ -121,7 +121,7 @@ with st.container(border=True):
         else:
             try:
                 services.backup_service.reset_to_fresh_state(preserve_admin_user_id=admin_user.id)
-                logout_user()
+                logout_user(services)
                 st.cache_data.clear()
                 st.cache_resource.clear()
                 st.success("Fresh state created. Log in again with your current admin credentials.")

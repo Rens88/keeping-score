@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Optional
 
 import streamlit as st
@@ -11,27 +12,127 @@ if TYPE_CHECKING:
     from tournament_tracker.bootstrap import AppServices
 
 SESSION_USER_ID_KEY = "auth_user_id"
+SESSION_AUTH_TOKEN_KEY = "auth_session_token"
+AUTH_COOKIE_COMMAND_KEY = "auth_cookie_command"
+AUTH_COOKIE_NAME = "weekend_tracker_session"
 HOME_PAGE = "app.py"
 PROFILE_PAGE = "pages/06_My_Profile.py"
 REGISTRATION_WAIT_PAGE = "pages/12_And_Now_We_Wait.py"
 REGISTRATION_GAME_PAGE = "pages/13_Registration_Game.py"
 
 
-def set_logged_in_user(user: User) -> None:
-    st.session_state[SESSION_USER_ID_KEY] = user.id
+def _queue_set_auth_cookie(*, token: str, max_age_seconds: int) -> None:
+    st.session_state[AUTH_COOKIE_COMMAND_KEY] = {
+        "action": "set",
+        "token": token,
+        "max_age_seconds": int(max_age_seconds),
+    }
 
 
-def logout_user() -> None:
+def _queue_clear_auth_cookie() -> None:
+    st.session_state[AUTH_COOKIE_COMMAND_KEY] = {"action": "clear"}
+
+
+def _apply_pending_auth_cookie_command() -> bool:
+    command = st.session_state.pop(AUTH_COOKIE_COMMAND_KEY, None)
+    if not isinstance(command, dict):
+        return False
+
+    action = str(command.get("action") or "").strip().lower()
+    cookie_name_json = json.dumps(AUTH_COOKIE_NAME)
+    if action == "set":
+        token_json = json.dumps(str(command.get("token") or ""))
+        max_age_seconds = max(1, int(command.get("max_age_seconds") or 0))
+        st.html(
+            f"""
+<script>
+(() => {{
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  const name = {cookie_name_json};
+  const token = {token_json};
+  document.cookie = `${{name}}=${{token}}; Max-Age={max_age_seconds}; Path=/; SameSite=Lax${{secure}}`;
+}})();
+</script>
+            """,
+            unsafe_allow_javascript=True,
+            width="content",
+        )
+        return False
+
+    if action == "clear":
+        st.html(
+            f"""
+<script>
+(() => {{
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  const name = {cookie_name_json};
+  document.cookie = `${{name}}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax${{secure}}`;
+}})();
+</script>
+            """,
+            unsafe_allow_javascript=True,
+            width="content",
+        )
+        return True
+
+    return False
+
+
+def _clear_local_login_state() -> Optional[str]:
+    raw_token = st.session_state.pop(SESSION_AUTH_TOKEN_KEY, None)
     st.session_state.pop(SESSION_USER_ID_KEY, None)
+    return str(raw_token) if raw_token else None
+
+
+def set_logged_in_user(
+    user: User,
+    *,
+    services: Optional["AppServices"] = None,
+    persist_login: bool = True,
+) -> None:
+    old_token = _clear_local_login_state()
+    if services and old_token:
+        services.auth_service.revoke_persistent_session(old_token)
+
+    st.session_state[SESSION_USER_ID_KEY] = user.id
+    if services and persist_login:
+        session_token, max_age_seconds = services.auth_service.create_persistent_session(user.id)
+        st.session_state[SESSION_AUTH_TOKEN_KEY] = session_token
+        _queue_set_auth_cookie(token=session_token, max_age_seconds=max_age_seconds)
+    elif old_token:
+        _queue_clear_auth_cookie()
+
+
+def logout_user(services: Optional["AppServices"] = None) -> None:
+    token = _clear_local_login_state()
+    if services and token:
+        services.auth_service.revoke_persistent_session(token)
+    _queue_clear_auth_cookie()
 
 
 def get_current_user(services: AppServices) -> Optional[User]:
+    skip_cookie_restore = _apply_pending_auth_cookie_command()
     user_id = st.session_state.get(SESSION_USER_ID_KEY)
     if not user_id:
+        if not skip_cookie_restore:
+            cookie_token = str(st.context.cookies.get(AUTH_COOKIE_NAME, "") or "").strip()
+            if cookie_token:
+                user = services.auth_service.restore_persistent_session(cookie_token)
+                if user:
+                    st.session_state[SESSION_USER_ID_KEY] = user.id
+                    st.session_state[SESSION_AUTH_TOKEN_KEY] = cookie_token
+                    return user
+                _queue_clear_auth_cookie()
+                _apply_pending_auth_cookie_command()
         return None
+
     user = services.repo.get_user_by_id(int(user_id))
     if not user or not user.is_active:
-        st.session_state.pop(SESSION_USER_ID_KEY, None)
+        token = _clear_local_login_state()
+        if token:
+            services.auth_service.revoke_persistent_session(token)
+            _queue_clear_auth_cookie()
+            _apply_pending_auth_cookie_command()
         return None
     return user
 
@@ -127,9 +228,9 @@ def render_main_navigation(user: Optional[User], *, current_page: Optional[str] 
 
     gate_destination: Optional[str] = None
     try:
-        from tournament_tracker.bootstrap import get_services
+        from tournament_tracker.bootstrap import get_runtime_services
 
-        gate_destination = get_registration_gate_page(get_services(), user)
+        gate_destination = get_registration_gate_page(get_runtime_services(), user)
     except Exception:
         gate_destination = None
 
@@ -167,7 +268,7 @@ def render_main_navigation(user: Optional[User], *, current_page: Optional[str] 
             [
                 ("✨", "Specials", "pages/17_Specials.py", "top_nav_specials"),
                 ("🏡", "Weekend Info", "pages/14_Weekend_Info.py", "top_nav_weekend_info"),
-                ("🔨", "Mini Game", "pages/15_Mini_Game.py", "top_nav_mini_game"),
+                ("🔨", "Mini Games", "pages/15_Mini_Game.py", "top_nav_mini_game"),
             ],
             row_size=3,
             icon_only=not text_mode,
@@ -180,9 +281,9 @@ def render_main_navigation(user: Optional[User], *, current_page: Optional[str] 
                 ("✨", "Specials", "pages/17_Specials.py", "top_nav_admin_specials"),
                 ("👥", "Participants", "pages/08_Admin_Participants_Invitations.py", "top_nav_admin_participants"),
                 ("🧩", "Registration Game", "pages/12_Admin_Registration_Game.py", "top_nav_admin_registration_game"),
-                ("🔨", "Mini Game", "pages/16_Admin_Mini_Game.py", "top_nav_admin_mini_game"),
+                ("🔨", "Mini Games", "pages/16_Admin_Mini_Game.py", "top_nav_admin_mini_game"),
                 ("🗓️", "Schedule", "pages/09_Admin_Schedule.py", "top_nav_admin_schedule"),
-                ("✅", "Results", "pages/10_Admin_Results.py", "top_nav_admin_results"),
+                ("✅", "Results", "pages/09_Admin_Schedule.py", "top_nav_admin_results"),
                 ("💾", "Backup", "pages/11_Admin_Backup_Restore.py", "top_nav_admin_backup"),
             ],
             icon_only=not text_mode,
@@ -204,7 +305,9 @@ def render_sidebar(user: Optional[User], *, current_page: Optional[str] = None) 
         if user:
             st.caption(f"Logged in as `{user.username or user.email or user.id}` ({user.role})")
             if st.button("Log out", width="stretch"):
-                logout_user()
+                from tournament_tracker.bootstrap import get_runtime_services
+
+                logout_user(get_runtime_services())
                 st.rerun()
 
         st.divider()
@@ -212,9 +315,9 @@ def render_sidebar(user: Optional[User], *, current_page: Optional[str] = None) 
         gate_destination: Optional[str] = None
         if user:
             try:
-                from tournament_tracker.bootstrap import get_services
+                from tournament_tracker.bootstrap import get_runtime_services
 
-                gate_destination = get_registration_gate_page(get_services(), user)
+                gate_destination = get_registration_gate_page(get_runtime_services(), user)
             except Exception:
                 gate_destination = None
 
@@ -229,7 +332,7 @@ def render_sidebar(user: Optional[User], *, current_page: Optional[str] = None) 
                 st.switch_page("pages/03_Leaderboard.py")
             if st.button("Upcoming", width="stretch", key="side_nav_upcoming"):
                 st.switch_page("pages/04_Upcoming_Matches.py")
-            if st.button("Past Matches", width="stretch", key="side_nav_past"):
+            if st.button("Past Events", width="stretch", key="side_nav_past"):
                 st.switch_page("pages/05_Past_Matches.py")
             if st.button("My Profile", width="stretch", key="side_nav_profile"):
                 st.switch_page(PROFILE_PAGE)
@@ -238,7 +341,7 @@ def render_sidebar(user: Optional[User], *, current_page: Optional[str] = None) 
                     st.switch_page("pages/17_Specials.py")
                 if st.button("Weekend Info", width="stretch", key="side_nav_weekend_info"):
                     st.switch_page("pages/14_Weekend_Info.py")
-                if st.button("Mini Game", width="stretch", key="side_nav_mini_game"):
+                if st.button("Mini Games", width="stretch", key="side_nav_mini_game"):
                     st.switch_page("pages/15_Mini_Game.py")
 
         if user and user.role == "admin":
@@ -250,13 +353,13 @@ def render_sidebar(user: Optional[User], *, current_page: Optional[str] = None) 
                 st.switch_page("pages/08_Admin_Participants_Invitations.py")
             if st.button("Registration Game", width="stretch", key="side_nav_admin_registration_game"):
                 st.switch_page("pages/12_Admin_Registration_Game.py")
-            if st.button("Mini Game", width="stretch", key="side_nav_admin_mini_game"):
+            if st.button("Mini Games", width="stretch", key="side_nav_admin_mini_game"):
                 st.switch_page("pages/16_Admin_Mini_Game.py")
             if st.button("Specials", width="stretch", key="side_nav_admin_specials"):
                 st.switch_page("pages/17_Specials.py")
             if st.button("Manage Schedule", width="stretch", key="side_nav_admin_schedule"):
                 st.switch_page("pages/09_Admin_Schedule.py")
-            if st.button("Enter/Edit Results", width="stretch", key="side_nav_admin_results"):
-                st.switch_page("pages/10_Admin_Results.py")
+            if st.button("Results in Schedule", width="stretch", key="side_nav_admin_results"):
+                st.switch_page("pages/09_Admin_Schedule.py")
             if st.button("Backup & Restore", width="stretch", key="side_nav_admin_backup"):
                 st.switch_page("pages/11_Admin_Backup_Restore.py")

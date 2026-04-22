@@ -11,6 +11,7 @@ from typing import Any, Iterable, Iterator, Optional
 
 from tournament_tracker.models import (
     ActivityItem,
+    AuthSession,
     CompetitionPointAward,
     DoublerActivation,
     Invitation,
@@ -19,6 +20,8 @@ from tournament_tracker.models import (
     MatchBet,
     MatchResult,
     MatchSpecialActivation,
+    RankedEvent,
+    RankedEventResult,
     MiniGameAward,
     MiniGameRun,
     ParticipantProfile,
@@ -33,6 +36,8 @@ COMPETITION_RANKING_SOURCE_TYPE = "competition_ranking"
 MATCH_PERFORMANCE_ADJUSTMENT_SOURCE_TYPE = "match_performance_adjustment"
 BETTING_SOURCE_TYPE = "betting"
 DOUBLE_OR_NOTHING_BONUS_SOURCE_TYPE = "double_or_nothing_bonus"
+MATCH_SPECIAL_BONUS_SOURCE_TYPE = "match_special_bonus"
+ADMIN_ADJUSTMENT_SOURCE_TYPE = "admin_adjustment"
 
 
 class SQLiteRepository:
@@ -150,6 +155,11 @@ class SQLiteRepository:
             ("whack_a_mole_deadline_at", ""),
             ("whack_a_mole_award_scheme", "5,3,1"),
             ("whack_a_mole_awards_applied_at", ""),
+            ("simon_says_enabled", "false"),
+            ("simon_says_opens_at", ""),
+            ("simon_says_deadline_at", ""),
+            ("simon_says_award_scheme", "5,3,1"),
+            ("simon_says_awards_applied_at", ""),
         )
         conn.executemany(
             """
@@ -685,6 +695,19 @@ class SQLiteRepository:
         )
 
     @staticmethod
+    def _row_to_auth_session(row: sqlite3.Row) -> AuthSession:
+        return AuthSession(
+            id=int(row["id"]),
+            user_id=int(row["user_id"]),
+            token_hash=str(row["token_hash"]),
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+            expires_at=str(row["expires_at"]),
+            last_used_at=str(row["last_used_at"]) if row["last_used_at"] is not None else None,
+            revoked_at=str(row["revoked_at"]) if row["revoked_at"] is not None else None,
+        )
+
+    @staticmethod
     def _row_to_participant_special(row: sqlite3.Row) -> ParticipantSpecial:
         return ParticipantSpecial(
             participant_user_id=int(row["participant_user_id"]),
@@ -710,6 +733,35 @@ class SQLiteRepository:
             payload_json=str(row["payload_json"]) if row["payload_json"] is not None else None,
         )
 
+    @staticmethod
+    def _row_to_ranked_event(row: sqlite3.Row) -> RankedEvent:
+        return RankedEvent(
+            id=int(row["id"]),
+            title=str(row["title"]),
+            scheduled_at=str(row["scheduled_at"]) if row["scheduled_at"] is not None else None,
+            scheduled_order=int(row["scheduled_order"]) if row["scheduled_order"] is not None else None,
+            status=str(row["status"]),
+            award_scheme=str(row["award_scheme"]),
+            created_by_user_id=int(row["created_by_user_id"]),
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+        )
+
+    @staticmethod
+    def _row_to_ranked_event_result(row: sqlite3.Row) -> RankedEventResult:
+        return RankedEventResult(
+            id=int(row["id"]),
+            ranked_event_id=int(row["ranked_event_id"]),
+            participant_user_id=int(row["participant_user_id"]),
+            placement=int(row["placement"]),
+            entered_at=str(row["entered_at"]),
+            entered_by_user_id=(
+                int(row["entered_by_user_id"])
+                if row["entered_by_user_id"] is not None
+                else None
+            ),
+        )
+
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         with self.connection() as conn:
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -729,6 +781,93 @@ class SQLiteRepository:
                 (login, login),
             ).fetchone()
         return self._row_to_user(row) if row else None
+
+    def create_auth_session(
+        self,
+        *,
+        user_id: int,
+        token_hash: str,
+        created_at: str,
+        expires_at: str,
+    ) -> AuthSession:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO auth_sessions (
+                    user_id,
+                    token_hash,
+                    created_at,
+                    updated_at,
+                    expires_at,
+                    last_used_at,
+                    revoked_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, NULL)
+                """,
+                (user_id, token_hash, created_at, created_at, expires_at, created_at),
+            )
+            session_id = int(cursor.lastrowid)
+            row = conn.execute("SELECT * FROM auth_sessions WHERE id = ?", (session_id,)).fetchone()
+        if not row:
+            raise RuntimeError("Auth session creation failed")
+        return self._row_to_auth_session(row)
+
+    def get_active_auth_session_by_token_hash(
+        self,
+        *,
+        token_hash: str,
+        now_iso: str,
+    ) -> Optional[AuthSession]:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM auth_sessions
+                WHERE token_hash = ?
+                  AND revoked_at IS NULL
+                  AND expires_at > ?
+                LIMIT 1
+                """,
+                (token_hash, now_iso),
+            ).fetchone()
+        return self._row_to_auth_session(row) if row else None
+
+    def touch_auth_session(self, *, session_id: int, now_iso: str) -> Optional[AuthSession]:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE auth_sessions
+                SET updated_at = ?, last_used_at = ?
+                WHERE id = ?
+                """,
+                (now_iso, now_iso, session_id),
+            )
+            row = conn.execute("SELECT * FROM auth_sessions WHERE id = ?", (session_id,)).fetchone()
+        return self._row_to_auth_session(row) if row else None
+
+    def revoke_auth_session_by_token_hash(self, *, token_hash: str, revoked_at: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE auth_sessions
+                SET revoked_at = COALESCE(revoked_at, ?),
+                    updated_at = ?
+                WHERE token_hash = ?
+                """,
+                (revoked_at, revoked_at, token_hash),
+            )
+
+    def revoke_auth_sessions_for_user(self, *, user_id: int, revoked_at: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE auth_sessions
+                SET revoked_at = COALESCE(revoked_at, ?),
+                    updated_at = ?
+                WHERE user_id = ?
+                """,
+                (revoked_at, revoked_at, user_id),
+            )
 
     def get_user_by_username(self, username: str) -> Optional[User]:
         with self.connection() as conn:
@@ -1319,6 +1458,232 @@ class SQLiteRepository:
 
         return [self._row_to_match(row) for row in rows]
 
+    def create_ranked_event(
+        self,
+        *,
+        title: str,
+        scheduled_at: Optional[str],
+        scheduled_order: Optional[int],
+        status: str,
+        award_scheme: str,
+        created_by_user_id: int,
+        created_at: str,
+        competitor_user_ids: list[int],
+    ) -> RankedEvent:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO ranked_events (
+                    title,
+                    scheduled_at,
+                    scheduled_order,
+                    status,
+                    award_scheme,
+                    created_by_user_id,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    title,
+                    scheduled_at,
+                    scheduled_order,
+                    status,
+                    award_scheme,
+                    created_by_user_id,
+                    created_at,
+                    created_at,
+                ),
+            )
+            event_id = int(cursor.lastrowid)
+            conn.executemany(
+                """
+                INSERT INTO ranked_event_competitors (ranked_event_id, participant_user_id)
+                VALUES (?, ?)
+                """,
+                [(event_id, participant_user_id) for participant_user_id in competitor_user_ids],
+            )
+            row = conn.execute("SELECT * FROM ranked_events WHERE id = ?", (event_id,)).fetchone()
+
+        if not row:
+            raise RuntimeError("Failed to create ranked event.")
+        return self._row_to_ranked_event(row)
+
+    def update_ranked_event(
+        self,
+        *,
+        event_id: int,
+        title: str,
+        scheduled_at: Optional[str],
+        scheduled_order: Optional[int],
+        status: str,
+        award_scheme: str,
+        updated_at: str,
+        competitor_user_ids: list[int],
+    ) -> Optional[RankedEvent]:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ranked_events
+                SET title = ?,
+                    scheduled_at = ?,
+                    scheduled_order = ?,
+                    status = ?,
+                    award_scheme = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    title,
+                    scheduled_at,
+                    scheduled_order,
+                    status,
+                    award_scheme,
+                    updated_at,
+                    event_id,
+                ),
+            )
+            if cursor.rowcount == 0:
+                return None
+
+            conn.execute("DELETE FROM ranked_event_competitors WHERE ranked_event_id = ?", (event_id,))
+            conn.executemany(
+                """
+                INSERT INTO ranked_event_competitors (ranked_event_id, participant_user_id)
+                VALUES (?, ?)
+                """,
+                [(event_id, participant_user_id) for participant_user_id in competitor_user_ids],
+            )
+            row = conn.execute("SELECT * FROM ranked_events WHERE id = ?", (event_id,)).fetchone()
+
+        return self._row_to_ranked_event(row) if row else None
+
+    def delete_ranked_event(self, event_id: int) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM ranked_events WHERE id = ?", (event_id,))
+
+    def get_ranked_event(self, event_id: int) -> Optional[RankedEvent]:
+        with self.connection() as conn:
+            row = conn.execute("SELECT * FROM ranked_events WHERE id = ?", (event_id,)).fetchone()
+        return self._row_to_ranked_event(row) if row else None
+
+    def list_ranked_events(self, statuses: Optional[list[str]] = None) -> list[RankedEvent]:
+        where_clause = ""
+        params: list[Any] = []
+        if statuses:
+            placeholders = ",".join(["?"] * len(statuses))
+            where_clause = f"WHERE status IN ({placeholders})"
+            params.extend(statuses)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM ranked_events
+                {where_clause}
+                ORDER BY
+                    CASE WHEN scheduled_order IS NULL THEN 1 ELSE 0 END,
+                    scheduled_order,
+                    CASE WHEN scheduled_at IS NULL THEN 1 ELSE 0 END,
+                    scheduled_at,
+                    id DESC
+                """,
+                tuple(params),
+            ).fetchall()
+        return [self._row_to_ranked_event(row) for row in rows]
+
+    def list_ranked_event_competitor_rows(
+        self,
+        event_ids: Optional[list[int]] = None,
+    ) -> list[dict[str, Any]]:
+        where_sql = ""
+        params: list[Any] = []
+        if event_ids:
+            placeholders = ",".join(["?"] * len(event_ids))
+            where_sql = f"WHERE rec.ranked_event_id IN ({placeholders})"
+            params.extend(event_ids)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    rec.ranked_event_id,
+                    rec.participant_user_id,
+                    pp.display_name,
+                    pp.motto,
+                    pp.photo_blob,
+                    pp.photo_mime_type,
+                    u.username,
+                    u.email
+                FROM ranked_event_competitors rec
+                JOIN users u ON u.id = rec.participant_user_id
+                LEFT JOIN participant_profiles pp ON pp.user_id = rec.participant_user_id
+                {where_sql}
+                ORDER BY rec.ranked_event_id, lower(coalesce(pp.display_name, u.username, u.email, '')), rec.participant_user_id
+                """,
+                tuple(params),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_ranked_event_results(
+        self,
+        *,
+        event_id: Optional[int] = None,
+    ) -> list[RankedEventResult]:
+        where_sql = ""
+        params: list[Any] = []
+        if event_id is not None:
+            where_sql = "WHERE ranked_event_id = ?"
+            params.append(event_id)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM ranked_event_results
+                {where_sql}
+                ORDER BY ranked_event_id, placement, participant_user_id, id
+                """,
+                tuple(params),
+            ).fetchall()
+        return [self._row_to_ranked_event_result(row) for row in rows]
+
+    def replace_ranked_event_results(
+        self,
+        *,
+        event_id: int,
+        results: list[tuple[int, int, str, Optional[int]]],
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM ranked_event_results WHERE ranked_event_id = ?", (event_id,))
+            conn.executemany(
+                """
+                INSERT INTO ranked_event_results (
+                    ranked_event_id,
+                    participant_user_id,
+                    placement,
+                    entered_at,
+                    entered_by_user_id
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        event_id,
+                        participant_user_id,
+                        placement,
+                        entered_at,
+                        entered_by_user_id,
+                    )
+                    for participant_user_id, placement, entered_at, entered_by_user_id in results
+                ],
+            )
+
+    def delete_ranked_event_results(self, event_id: int) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM ranked_event_results WHERE ranked_event_id = ?", (event_id,))
+
     def list_match_rows(
         self,
         *,
@@ -1710,18 +2075,48 @@ class SQLiteRepository:
                 (event_type, message, related_match_id, related_user_id, created_at),
             )
 
-    def list_recent_activity(self, limit: int = 10) -> list[ActivityItem]:
+    def list_recent_activity(self, limit: Optional[int] = 10) -> list[ActivityItem]:
+        limit_sql = ""
+        params: tuple[Any, ...] = ()
+        if limit is not None:
+            limit_sql = "LIMIT ?"
+            params = (limit,)
         with self.connection() as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT created_at, message
                 FROM activity_log
                 ORDER BY id DESC
-                LIMIT ?
+                {limit_sql}
                 """,
-                (limit,),
+                params,
             ).fetchall()
         return [ActivityItem(timestamp=row["created_at"], message=row["message"]) for row in rows]
+
+    def list_activity_log_rows(self, limit: Optional[int] = None) -> list[dict[str, Any]]:
+        limit_sql = ""
+        params: tuple[Any, ...] = ()
+        if limit is not None:
+            limit_sql = "LIMIT ?"
+            params = (limit,)
+
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    id,
+                    event_type,
+                    message,
+                    related_match_id,
+                    related_user_id,
+                    created_at
+                FROM activity_log
+                ORDER BY id DESC
+                {limit_sql}
+                """,
+                params,
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def create_minigame_run(
         self,
@@ -1967,6 +2362,21 @@ class SQLiteRepository:
             conn.execute(
                 f"DELETE FROM competition_point_awards WHERE source_type IN ({placeholders})",
                 tuple(source_types),
+            )
+
+    def delete_competition_point_awards_for_source(
+        self,
+        *,
+        source_type: str,
+        source_key: str,
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                DELETE FROM competition_point_awards
+                WHERE source_type = ? AND source_key = ?
+                """,
+                (source_type, source_key),
             )
 
     def upsert_match_bet(

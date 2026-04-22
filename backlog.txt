@@ -1,0 +1,11 @@
+TASK 1: Implement suggested specials. Agreed:  pre-match, one-time, own-match specials, not as passive always-on effects
+
+TASK 2: Implement second mini game. Rename the page to Mini Games and let the user select with tabs (just like the create, edit and delete game functionalitY) which game they want to play. The second mini game I want to implement is Simon Says. 
+
+TASK 3: On the praktische info page, add a link to the maps location of the accommodation: https://maps.app.goo.gl/DVJ8BWB4uxDMQaov7
+And mention the specific address: Boterweg 32, Erp.
+
+TASK 4: 
+Follow-up from previous "TASK 7" earlier in this chat thread: "I think I previously asked you to plan or create the functionality to add multi-competitor matches (like how the mini game works: based on t he ranking people get points). Check whether that functionality exists. Tell me how I can use it or create that functionality."
+UPDATED TASK: Make dedicated admin UI for creating a normal multi-competitor ranked event from the schedule flow. Make a proper ranked-event admin screen.
+

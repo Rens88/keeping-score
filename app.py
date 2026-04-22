@@ -3,12 +3,12 @@ from __future__ import annotations
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.session import enforce_registration_gate, get_current_user, render_sidebar
 
 st.set_page_config(page_title="Weekend Tournament Tracker", page_icon="🏆", layout="wide")
 
-services = get_services()
+services = get_runtime_services()
 current_user = get_current_user(services)
 if current_user:
     enforce_registration_gate(services, current_user, current_page="app.py")
@@ -41,8 +41,8 @@ if current_user:
         with admin_col_2:
             if st.button("Manage Schedule", width="stretch", key="home_admin_schedule"):
                 st.switch_page("pages/09_Admin_Schedule.py")
-            if st.button("Enter/Edit Results", width="stretch", key="home_admin_results"):
-                st.switch_page("pages/10_Admin_Results.py")
+            if st.button("Results in Schedule", width="stretch", key="home_admin_results"):
+                st.switch_page("pages/09_Admin_Schedule.py")
             if st.button("Backup & Restore", width="stretch", key="home_admin_backup"):
                 st.switch_page("pages/11_Admin_Backup_Restore.py")
 else:

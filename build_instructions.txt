@@ -308,3 +308,70 @@ Requested Changes (summarized)
 - Fix the admin schedule page so create/update/delete actions keep their success feedback visible instead of immediately forcing an extra rerun that makes the button feel broken.
 - Remove the deprecated `datetime.utcnow()` usage from the schedule page.
 - Fix the Windows LAN launcher log so the reported fallback port matches the actual port chosen after scanning for a free one.
+
+56. Persistent login support:
+- Reduce forced re-logins by adding a remember-this-device login flow backed by server-side session tokens instead of session-state-only auth.
+- Restore valid sessions from a browser cookie, revoke remembered sessions on logout and password changes, and make the login UI explain the stay-signed-in behavior clearly.
+
+57. Admin visibility, betting transparency, and schedule/result clarity:
+- Improve tab readability on the manage schedule page and make new match kickoff defaults land two hours ahead of the current time.
+- Generate a chat-ready betting announcement after saving an upcoming match so the admin can quickly copy a message with the app link and match reference.
+- Fix match deletion so removing a match no longer crashes on an activity-log foreign-key reference after the match row is gone.
+- Expand the admin dashboard with a scrollable all-activity table, a specials snapshot, and a manual point-adjustment tool that writes into the shared competition-point history.
+- Show explicit Side 1 / Side 2 naming on the results page, surface open bets per live/upcoming match, cap oversized bottom-page visuals, and add per-player point logs inside the leaderboard details.
+- Confirm that the generic competition-award plumbing for ranked multi-competitor events exists under the hood, while a dedicated admin UI for creating those ranked events still is not present yet.
+
+58. Follow-up fixes for cached services, specials troubleshooting, and past-match detail:
+- Fix the leaderboard crash caused by a cached old RankingService instance that does not yet expose the newer point-ledger methods.
+- Darken the unselected schedule tabs even before hover so the text stays readable all the time.
+- Replace the old doubler-only troubleshooting area with a general specials troubleshooting flow that lets the admin pick a special, see the current status, deactivate/reactivate it, and assign match-based specials without the old “no doubler activation found” failure.
+- Rebuild the past matches page into expandable match entries that show competitor and bettor point breakdowns with separate outcome, special, betting, and total columns.
+
+59. Foldable special explanations with player-by-player stats:
+- Make each special section on the shared Specials page collapsible for both admins and participants.
+- Inside each unfolded special, show every participant with a clear active/not-active state, how many times that special has been used, and how many bonus points that special has earned for that player.
+
+60. Shared hover/readability polish and clearer leader-special status:
+- Darken shared hover/open states for foldouts and upload-button interactions so labels stay readable instead of turning near-white on hover or when expanded.
+- Make the specials page distinguish `available now`, `active now`, `used already`, and `not available` so leader-based specials are not mistaken for missing.
+- Explain directly on the specials page when `King of the Hill` has no holder because first place is tied, and surface the current holders for `Winner takes it all`.
+
+61. Direct betting-page link in schedule announcements:
+- Update the generated admin betting chat message so it links straight to the Upcoming Matches page instead of only linking to the app homepage.
+
+62. Admin dashboard points-tool readability:
+- Apply the shared high-contrast custom field labels to the manual point-adjustment form on the admin dashboard so the participant, points, and reason fields stay readable on dark backgrounds.
+
+63. Larger bottom-page decoration figures:
+- Increase the shared max height of the decorative media shown at the bottom of pages so portrait-oriented figures remain more fully visible on desktop and mobile.
+
+64. Delete-match cleanup for bets and special-based points:
+- When an admin deletes a match, also remove that match's betting and special-adjusted leaderboard effects by recalculating match-related competition-point awards after the match row is deleted.
+
+65. Participant-safe bet visibility on upcoming matches:
+- On the Upcoming Matches page, let participants see only who has placed a bet on a match and the total stake across all open bets, while keeping the detailed prediction/stake breakdown visible only to admins.
+
+66. New betting-based specials, Simon Says, practical-info link, and ranked-event admin UI:
+- Implement the agreed one-time, pre-match, own-match specials `Match Fixer`, `King Fixer`, and `Don't underestimate my power`, including unlock rules based on cumulative betting wins/losses and match-result bonus scoring.
+- Turn the single Mini Game flow into a shared Mini Games experience with tabs for both Whack-a-mole and a new Simon Says game, and update the admin minigame page so both games can be scheduled and awarded from the same screen.
+- Add the accommodation maps link and address to the Weekend Info page.
+- Extend the schedule admin page with a dedicated Ranked Events area for creating, editing, scoring, and deleting normal multi-competitor placement events.
+
+67. Simon Says reveal clarity fix:
+- Make the Simon Says example phase clearly visible by showing an explicit “Simon shows” reveal message and a visibly highlighted non-clickable color pad instead of relying on disabled button styling alone.
+
+68. Manage Schedule tab reorganization:
+- Reorganize the Manage Schedule page so the top row first asks whether the admin is working on a `Head-to-head` or `Multi-competitor` item.
+- Use a second row of action tabs inside each category, with create/edit/delete for head-to-head matches and create/edit/results/delete for multi-competitor events.
+
+69. Auto-increment scheduled-order defaults:
+- On the Manage Schedule page, make the create forms default their `Scheduled order` to one higher than the current highest scheduled order across existing head-to-head matches and multi-competitor events.
+
+70. Ranked-event competitor-row key mismatch fix:
+- Fix the Manage Schedule ranked-event screen crash caused by reading `event_id` from competitor rows when the repository currently returns `ranked_event_id`.
+
+71. Public event pages and unified schedule/results flow:
+- Show multi-competitor games on the Upcoming and Past pages alongside the existing head-to-head matches.
+- Move head-to-head result entry/removal into Manage Schedule so both head-to-head and multi-competitor sections use create/edit/results/delete tabs.
+- Remove the option to leave the date/time empty, keep new games defaulting to `upcoming`, and make result entry set status to `completed` by default while still allowing result removal.
+- Use `Game type` wording for both head-to-head and multi-competitor forms instead of calling the multi-competitor field an event title.

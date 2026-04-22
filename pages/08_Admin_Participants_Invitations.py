@@ -5,6 +5,18 @@ import streamlit as st
 from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.services.errors import NotFoundError, ValidationError
+from tournament_tracker.services.special_service import (
+    MANUAL_MATCH_SPECIAL_KEYS,
+    SPECIAL_CATCH_UP,
+    SPECIAL_DONT_UNDERESTIMATE,
+    SPECIAL_DOUBLER,
+    SPECIAL_DOUBLE_OR_NOTHING,
+    SPECIAL_KING_FIXER,
+    SPECIAL_KING_OF_THE_HILL,
+    SPECIAL_MATCH_FIXER,
+    SPECIAL_WHEEL,
+    SPECIAL_WINNER_TAKES_ALL,
+)
 from tournament_tracker.session import render_sidebar, require_admin
 
 st.set_page_config(page_title="Participants and Registration", page_icon="👥", layout="wide")
@@ -207,11 +219,11 @@ else:
             st.error(str(exc))
 
     st.divider()
-    st.subheader("Doubler troubleshooting")
-    doubler_rows = services.match_service.list_doubler_status_rows()
+    st.subheader("Specials troubleshooting")
+    special_rows = services.special_service.list_special_status_rows()
     options = {
         f"{row['name']} (id {row['user_id']})": int(row["user_id"])
-        for row in doubler_rows
+        for row in special_rows
     }
     if options:
         render_form_field_label("Participant")
@@ -222,64 +234,101 @@ else:
     if selected_label:
         selected_user_id = options[selected_label]
         selected_status = next(
-            (row for row in doubler_rows if int(row["user_id"]) == selected_user_id),
+            (row for row in special_rows if int(row["user_id"]) == selected_user_id),
             None,
         )
-        if selected_status:
-            selected_specials = services.special_service.get_participant_specials(selected_user_id)
-            doubler = selected_specials.get("doubler")
-            if doubler and doubler.is_active:
-                st.write(
-                    "Current status: active"
-                    + (
-                        f" (match #{selected_status['match_id']} - {selected_status['game_type']})"
-                        if selected_status["match_id"]
-                        else ""
-                    )
-                )
-            elif doubler and doubler.is_available:
-                st.write("Current status: available")
-            else:
-                st.write("Current status: unavailable")
-
-        col_a, col_b = st.columns(2)
-        with col_a:
-            if st.button("Clear doubler", width="stretch"):
-                try:
-                    services.match_service.clear_doubler(selected_user_id)
-                    st.success("Doubler cleared.")
-                    st.rerun()
-                except NotFoundError as exc:
-                    st.error(str(exc))
-
-        with col_b:
-            participant_matches = services.match_service.list_matches_for_view(
-                statuses=["upcoming"], participant_user_id=selected_user_id
+        if not selected_status:
+            st.info("Could not load the special status for this participant.")
+        else:
+            special_options = {
+                "Doubler": SPECIAL_DOUBLER,
+                "Double-or-nothing": SPECIAL_DOUBLE_OR_NOTHING,
+                "King of the Hill": SPECIAL_KING_OF_THE_HILL,
+                "The winner takes it all": SPECIAL_WINNER_TAKES_ALL,
+                "Catch-up mode": SPECIAL_CATCH_UP,
+                "Wheel of Fortune": SPECIAL_WHEEL,
+                "Match Fixer": SPECIAL_MATCH_FIXER,
+                "King Fixer": SPECIAL_KING_FIXER,
+                "Don't underestimate my power": SPECIAL_DONT_UNDERESTIMATE,
+            }
+            render_form_field_label("Special")
+            selected_special_label = st.selectbox(
+                "Special",
+                list(special_options.keys()),
+                key="special_troubleshooting_select",
+                label_visibility="collapsed",
             )
-            if participant_matches:
-                match_option_map = {
-                    f"#{m.match_id} - {m.game_type} (order {m.scheduled_order or '-'})": m.match_id
-                    for m in participant_matches
-                }
-                render_form_field_label("Reassign to upcoming match")
-                selected_match_label = st.selectbox(
-                    "Reassign to upcoming match",
-                    list(match_option_map.keys()),
-                    key="reassign_match",
-                    label_visibility="collapsed",
-                )
-                if st.button("Force reassign doubler", width="stretch"):
+            selected_special_key = special_options[selected_special_label]
+            current_status = str(selected_status[selected_special_key])
+            current_override = str(selected_status.get(f"{selected_special_key}_override", "auto"))
+            st.write(f"Current status: {current_status}")
+
+            status_is_available = current_status.startswith("available") or current_status.startswith("active")
+            toggle_label = "Deactivate special" if status_is_available else "(re)-activate special"
+            toggle_mode = "off" if status_is_available else "on"
+
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button(toggle_label, width="stretch", key="special_troubleshooting_toggle"):
                     try:
-                        services.match_service.admin_force_reassign_doubler(
+                        services.special_service.set_special_override_mode(
                             participant_user_id=selected_user_id,
-                            match_id=match_option_map[selected_match_label],
-                            admin_user_id=admin_user.id,
+                            special_key=selected_special_key,
+                            mode=toggle_mode,
+                            updated_by_user_id=admin_user.id,
                         )
-                        st.success("Doubler reassigned.")
+                        st.success(f"{services.special_service.special_label(selected_special_key)} updated.")
                         st.rerun()
-                    except (ValidationError, NotFoundError) as exc:
+                    except ValidationError as exc:
                         st.error(str(exc))
-            else:
-                st.info("No upcoming matches for this participant.")
+
+            with col_b:
+                if selected_special_key in MANUAL_MATCH_SPECIAL_KEYS:
+                    participant_matches = services.match_service.list_matches_for_view(
+                        statuses=["upcoming"], participant_user_id=selected_user_id
+                    )
+                    if participant_matches:
+                        match_option_map = {
+                            f"#{m.match_id} - {m.game_type} (order {m.scheduled_order or '-'})": m.match_id
+                            for m in participant_matches
+                        }
+                        render_form_field_label("Assign to upcoming match")
+                        selected_match_label = st.selectbox(
+                            "Assign to upcoming match",
+                            list(match_option_map.keys()),
+                            key=f"special_assign_match_{selected_special_key}",
+                            label_visibility="collapsed",
+                        )
+                        if st.button("Force assign special to match", width="stretch", key="special_force_assign_btn"):
+                            try:
+                                if current_status.startswith("active"):
+                                    services.special_service.set_special_override_mode(
+                                        participant_user_id=selected_user_id,
+                                        special_key=selected_special_key,
+                                        mode="off",
+                                        updated_by_user_id=admin_user.id,
+                                    )
+                                if current_override != "auto" or current_status.startswith("active"):
+                                    services.special_service.set_special_override_mode(
+                                        participant_user_id=selected_user_id,
+                                        special_key=selected_special_key,
+                                        mode="auto",
+                                        updated_by_user_id=admin_user.id,
+                                    )
+                                services.special_service.activate_match_special(
+                                    participant_user_id=selected_user_id,
+                                    special_key=selected_special_key,
+                                    match_id=match_option_map[selected_match_label],
+                                    actor_user_id=admin_user.id,
+                                    admin_override=True,
+                                )
+                                st.success(f"{services.special_service.special_label(selected_special_key)} assigned.")
+                                st.rerun()
+                            except (ValidationError, NotFoundError) as exc:
+                                st.error(str(exc))
+                    else:
+                        st.info("No upcoming matches for this participant.")
+                else:
+                    st.caption("This special is not assigned to a specific upcoming match.")
 
 render_bottom_decoration()

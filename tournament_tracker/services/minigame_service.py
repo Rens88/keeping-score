@@ -14,6 +14,16 @@ from tournament_tracker.services.errors import ValidationError
 
 APP_TIMEZONE = ZoneInfo("Europe/Amsterdam")
 WHACK_A_MOLE_SLUG = "whack_a_mole"
+SIMON_SAYS_SLUG = "simon_says"
+SUPPORTED_MINIGAME_SLUGS = (WHACK_A_MOLE_SLUG, SIMON_SAYS_SLUG)
+GAME_LABELS = {
+    WHACK_A_MOLE_SLUG: "Whack-a-mole",
+    SIMON_SAYS_SLUG: "Simon Says",
+}
+GAME_SETTING_PREFIXES = {
+    WHACK_A_MOLE_SLUG: "whack_a_mole",
+    SIMON_SAYS_SLUG: "simon_says",
+}
 COMPETITION_RANKING_SOURCE_TYPE = "competition_ranking"
 DEFAULT_AWARD_SCHEME = (5, 3, 1)
 DEFAULT_OPEN_DELAY_HOURS = 1
@@ -44,6 +54,22 @@ class MiniGameParticipantSummary:
 class MiniGameService:
     def __init__(self, repo: SQLiteRepository) -> None:
         self.repo = repo
+
+    @staticmethod
+    def _require_supported_game(game_slug: str) -> str:
+        if game_slug not in SUPPORTED_MINIGAME_SLUGS:
+            raise ValidationError("Unknown mini game.")
+        return game_slug
+
+    @classmethod
+    def game_label(cls, game_slug: str) -> str:
+        cls._require_supported_game(game_slug)
+        return GAME_LABELS[game_slug]
+
+    @classmethod
+    def game_setting_prefix(cls, game_slug: str) -> str:
+        cls._require_supported_game(game_slug)
+        return GAME_SETTING_PREFIXES[game_slug]
 
     @staticmethod
     def local_now() -> datetime:
@@ -115,17 +141,22 @@ class MiniGameService:
             return "Not set"
         return parsed.strftime("%A %d %B %Y %H:%M")
 
-    def get_game_config(self) -> MiniGameConfig:
+    def get_game_config(self, game_slug: str = WHACK_A_MOLE_SLUG) -> MiniGameConfig:
+        prefix = self.game_setting_prefix(game_slug)
         return MiniGameConfig(
-            enabled=(self.repo.get_app_setting("whack_a_mole_enabled") or "").strip().lower() == "true",
-            opens_at=(self.repo.get_app_setting("whack_a_mole_opens_at") or "").strip() or None,
-            deadline_at=(self.repo.get_app_setting("whack_a_mole_deadline_at") or "").strip() or None,
-            award_scheme=self.parse_award_scheme(self.repo.get_app_setting("whack_a_mole_award_scheme")),
-            awards_applied_at=(self.repo.get_app_setting("whack_a_mole_awards_applied_at") or "").strip() or None,
+            enabled=(self.repo.get_app_setting(f"{prefix}_enabled") or "").strip().lower() == "true",
+            opens_at=(self.repo.get_app_setting(f"{prefix}_opens_at") or "").strip() or None,
+            deadline_at=(self.repo.get_app_setting(f"{prefix}_deadline_at") or "").strip() or None,
+            award_scheme=self.parse_award_scheme(self.repo.get_app_setting(f"{prefix}_award_scheme")),
+            awards_applied_at=(self.repo.get_app_setting(f"{prefix}_awards_applied_at") or "").strip() or None,
         )
 
-    def get_status(self, now: Optional[datetime] = None) -> MiniGameStatus:
-        config = self.get_game_config()
+    def get_status(
+        self,
+        now: Optional[datetime] = None,
+        game_slug: str = WHACK_A_MOLE_SLUG,
+    ) -> MiniGameStatus:
+        config = self.get_game_config(game_slug)
         current_time = now.astimezone(APP_TIMEZONE) if now is not None else self.local_now()
         opens_at = self.parse_optional_datetime(config.opens_at)
         deadline_at = self.parse_optional_datetime(config.deadline_at)
@@ -157,7 +188,10 @@ class MiniGameService:
         opens_at: datetime,
         deadline_at: datetime,
         award_scheme: tuple[int, ...],
+        game_slug: str = WHACK_A_MOLE_SLUG,
     ) -> None:
+        prefix = self.game_setting_prefix(game_slug)
+        game_label = self.game_label(game_slug)
         local_open = self.localize_naive(opens_at)
         local_deadline = self.localize_naive(deadline_at)
         if local_deadline <= local_open:
@@ -165,42 +199,43 @@ class MiniGameService:
 
         now_iso = utc_now_iso()
         self.repo.set_app_setting(
-            key="whack_a_mole_enabled",
+            key=f"{prefix}_enabled",
             value="true" if enabled else "false",
             updated_at=now_iso,
         )
         self.repo.set_app_setting(
-            key="whack_a_mole_opens_at",
+            key=f"{prefix}_opens_at",
             value=local_open.isoformat(),
             updated_at=now_iso,
         )
         self.repo.set_app_setting(
-            key="whack_a_mole_deadline_at",
+            key=f"{prefix}_deadline_at",
             value=local_deadline.isoformat(),
             updated_at=now_iso,
         )
         self.repo.set_app_setting(
-            key="whack_a_mole_award_scheme",
+            key=f"{prefix}_award_scheme",
             value=self.serialize_award_scheme(award_scheme),
             updated_at=now_iso,
         )
         self.repo.log_activity(
             event_type="minigame_config_updated",
             message=(
-                "Admin updated the Whack-a-mole schedule "
+                f"Admin updated the {game_label} schedule "
                 f"(enabled={enabled}, opens={local_open.isoformat()}, deadline={local_deadline.isoformat()})"
             ),
             created_at=now_iso,
             related_user_id=admin_user_id,
         )
 
-    def list_leaderboard(self) -> list[MiniGameLeaderboardRow]:
-        runs = self.repo.list_minigame_runs(WHACK_A_MOLE_SLUG)
+    def list_leaderboard(self, game_slug: str = WHACK_A_MOLE_SLUG) -> list[MiniGameLeaderboardRow]:
+        self._require_supported_game(game_slug)
+        runs = self.repo.list_minigame_runs(game_slug)
         awards_by_user = {
             award.participant_user_id: float(award.points_awarded)
             for award in self.repo.list_competition_point_awards(
                 source_type=COMPETITION_RANKING_SOURCE_TYPE,
-                source_key=WHACK_A_MOLE_SLUG,
+                source_key=game_slug,
             )
         }
         if not runs:
@@ -269,12 +304,17 @@ class MiniGameService:
 
         return leaderboard
 
-    def get_participant_summary(self, participant_user_id: int) -> MiniGameParticipantSummary:
+    def get_participant_summary(
+        self,
+        participant_user_id: int,
+        game_slug: str = WHACK_A_MOLE_SLUG,
+    ) -> MiniGameParticipantSummary:
+        self._require_supported_game(game_slug)
         attempts = 0
         best_score = 0
         awarded_points = 0.0
 
-        for row in self.repo.list_minigame_runs(WHACK_A_MOLE_SLUG):
+        for row in self.repo.list_minigame_runs(game_slug):
             if int(row["participant_user_id"]) != participant_user_id:
                 continue
             attempts += 1
@@ -282,7 +322,7 @@ class MiniGameService:
 
         for award in self.repo.list_competition_point_awards(
             source_type=COMPETITION_RANKING_SOURCE_TYPE,
-            source_key=WHACK_A_MOLE_SLUG,
+            source_key=game_slug,
         ):
             if award.participant_user_id == participant_user_id:
                 awarded_points += float(award.points_awarded)
@@ -301,26 +341,28 @@ class MiniGameService:
         duration_seconds: int,
         started_at: Optional[datetime] = None,
         metadata: Optional[dict[str, object]] = None,
+        game_slug: str = WHACK_A_MOLE_SLUG,
     ) -> None:
+        game_label = self.game_label(game_slug)
         user = self._require_participant(user_id)
         if not user.registration_game_completed:
             raise ValidationError("Finish the registration game before playing the minigame.")
 
-        status = self.get_status()
+        status = self.get_status(game_slug=game_slug)
         if started_at is not None:
             started_at = started_at.astimezone(APP_TIMEZONE)
         started_before_deadline = bool(
             started_at is not None and status.deadline_at is not None and started_at < status.deadline_at
         )
         if status.state != "live" and not started_before_deadline:
-            raise ValidationError("Whack-a-mole is not live right now.")
+            raise ValidationError(f"{game_label} is not live right now.")
         if score < 0:
             raise ValidationError("Score cannot be negative.")
 
         metadata_json = json.dumps(metadata, separators=(",", ":"), sort_keys=True) if metadata else None
         now_iso = utc_now_iso()
         self.repo.create_minigame_run(
-            game_slug=WHACK_A_MOLE_SLUG,
+            game_slug=game_slug,
             participant_user_id=user_id,
             score=int(score),
             duration_seconds=int(duration_seconds),
@@ -329,21 +371,28 @@ class MiniGameService:
         )
         self.repo.log_activity(
             event_type="minigame_run_recorded",
-            message=f"Participant {user_id} posted a Whack-a-mole score of {int(score)}",
+            message=f"Participant {user_id} posted a {game_label} score of {int(score)}",
             created_at=now_iso,
             related_user_id=user_id,
         )
 
-    def apply_awards(self, *, admin_user_id: int) -> list[MiniGameLeaderboardRow]:
-        status = self.get_status()
+    def apply_awards(
+        self,
+        *,
+        admin_user_id: int,
+        game_slug: str = WHACK_A_MOLE_SLUG,
+    ) -> list[MiniGameLeaderboardRow]:
+        prefix = self.game_setting_prefix(game_slug)
+        game_label = self.game_label(game_slug)
+        status = self.get_status(game_slug=game_slug)
         if status.deadline_at is None:
             raise ValidationError("Set a deadline before awarding points.")
         if self.local_now() < status.deadline_at:
             raise ValidationError("You can only award points after the deadline has passed.")
 
-        leaderboard = self.list_leaderboard()
+        leaderboard = self.list_leaderboard(game_slug)
         if not leaderboard:
-            raise ValidationError("No Whack-a-mole scores have been posted yet.")
+            raise ValidationError(f"No {game_label} scores have been posted yet.")
 
         now_iso = utc_now_iso()
         awards: list[tuple[int, int, float, str, int]] = []
@@ -354,24 +403,24 @@ class MiniGameService:
             awards.append((row.user_id, placement, float(points), now_iso, admin_user_id))
 
         self.repo.replace_minigame_awards(
-            game_slug=WHACK_A_MOLE_SLUG,
+            game_slug=game_slug,
             awards=awards,
         )
         self.repo.set_app_setting(
-            key="whack_a_mole_awards_applied_at",
+            key=f"{prefix}_awards_applied_at",
             value=now_iso,
             updated_at=now_iso,
         )
         self.repo.log_activity(
             event_type="minigame_awards_applied",
             message=(
-                "Admin awarded Whack-a-mole weekend points "
+                f"Admin awarded {game_label} weekend points "
                 f"using scheme {self.serialize_award_scheme(status.award_scheme)}"
             ),
             created_at=now_iso,
             related_user_id=admin_user_id,
         )
-        return self.list_leaderboard()
+        return self.list_leaderboard(game_slug)
 
     def _require_participant(self, user_id: int) -> User:
         user = self.repo.get_user_by_id(user_id)

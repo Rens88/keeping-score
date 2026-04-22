@@ -48,6 +48,7 @@ class AppConfig:
     db_path: Path
     app_base_url: str
     app_base_url_is_fallback: bool
+    persistent_login_days: int
     default_invite_expiry_hours: int
     photo_storage_mode: str
     photo_upload_path: Optional[Path]
@@ -90,6 +91,7 @@ def get_config() -> AppConfig:
     app_env = _normalize_app_env(_get_setting("APP_ENV", "local"))
     db_path_raw = _get_setting("DB_PATH", _default_db_path_for_env(app_env))
     default_invite_expiry = _safe_int(_get_setting("DEFAULT_INVITE_EXPIRY_HOURS", "72"), 72)
+    persistent_login_days = max(1, _safe_int(_get_setting("PERSISTENT_LOGIN_DAYS", "30"), 30))
 
     photo_storage_mode = (_get_setting("PHOTO_STORAGE_MODE", "db_blob") or "db_blob").strip().lower()
     if photo_storage_mode not in {"db_blob", "filesystem"}:
@@ -109,6 +111,7 @@ def get_config() -> AppConfig:
         db_path=Path(db_path_raw or _default_db_path_for_env(app_env)),
         app_base_url=app_base_url,
         app_base_url_is_fallback=app_base_url_is_fallback,
+        persistent_login_days=persistent_login_days,
         default_invite_expiry_hours=default_invite_expiry,
         photo_storage_mode=photo_storage_mode,
         photo_upload_path=Path(photo_upload_path_raw) if photo_upload_path_raw else None,

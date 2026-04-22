@@ -7,6 +7,8 @@ from tournament_tracker.branding import render_bottom_decoration, render_page_in
 from tournament_tracker.session import render_sidebar, require_login
 from tournament_tracker.weekend_info import (
     ACCOMMODATION_LINK,
+    ACCOMMODATION_ADDRESS,
+    ACCOMMODATION_MAPS_LINK,
     PRACTICAL_INFO,
     REWARD_IMAGE_PATH,
     WIEBETAALTWAT_LINK,
@@ -29,30 +31,37 @@ if REWARD_IMAGE_PATH.exists():
 with st.container(border=True):
     st.subheader("Belangrijke links")
     st.link_button("Open de accommodatie", ACCOMMODATION_LINK, width="stretch")
+    st.link_button("Open accommodatie in Maps", ACCOMMODATION_MAPS_LINK, width="stretch")
     st.link_button("Open WieBetaaltWat", WIEBETAALTWAT_LINK, width="stretch")
 
 with st.container(border=True):
     st.subheader("Praktische info")
+    st.write(f"- Address: {ACCOMMODATION_ADDRESS}")
     for item in PRACTICAL_INFO:
+        if item == f"Accommodation address: {ACCOMMODATION_ADDRESS}":
+            continue
         st.write(f"- {item}")
 
-minigame_status = services.minigame_service.get_status()
 with st.container(border=True):
-    st.subheader("Mini Game")
-    if minigame_status.state == "live":
-        st.success("Whack-a-mole is live.")
-        if st.button("Open Whack-a-mole", width="stretch", type="primary"):
-            st.switch_page("pages/15_Mini_Game.py")
-    elif minigame_status.state == "scheduled":
-        st.info(
-            "Whack-a-mole gaat open op "
-            f"{services.minigame_service.format_datetime(minigame_status.opens_at)}."
-        )
-    elif minigame_status.state == "closed":
-        st.info("Whack-a-mole is gesloten. Je kunt de eindstand nog bekijken op de minigame-pagina.")
-        if st.button("Bekijk de minigame-stand", width="stretch"):
-            st.switch_page("pages/15_Mini_Game.py")
-    else:
-        st.caption("Whack-a-mole is nog niet vrijgegeven.")
+    st.subheader("Mini Games")
+    game_summaries = []
+    for game_slug in ("whack_a_mole", "simon_says"):
+        game_label = services.minigame_service.game_label(game_slug)
+        status = services.minigame_service.get_status(game_slug=game_slug)
+        if status.state == "live":
+            game_summaries.append(f"{game_label} is live")
+        elif status.state == "scheduled":
+            game_summaries.append(
+                f"{game_label} opens op {services.minigame_service.format_datetime(status.opens_at)}"
+            )
+        elif status.state == "closed":
+            game_summaries.append(f"{game_label} is gesloten, maar de eindstand is zichtbaar")
+        else:
+            game_summaries.append(f"{game_label} is nog niet vrijgegeven")
+
+    for item in game_summaries:
+        st.write(f"- {item}")
+    if st.button("Open Mini Games", width="stretch", type="primary"):
+        st.switch_page("pages/15_Mini_Game.py")
 
 render_bottom_decoration()

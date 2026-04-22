@@ -10,6 +10,7 @@ from tournament_tracker.models import Match, MatchSpecialActivation, Participant
 from tournament_tracker.repository import (
     BETTING_SOURCE_TYPE,
     DOUBLE_OR_NOTHING_BONUS_SOURCE_TYPE,
+    MATCH_SPECIAL_BONUS_SOURCE_TYPE,
     MATCH_PERFORMANCE_ADJUSTMENT_SOURCE_TYPE,
     SQLiteRepository,
 )
@@ -23,6 +24,9 @@ SPECIAL_KING_OF_THE_HILL = "king_of_the_hill"
 SPECIAL_WINNER_TAKES_ALL = "winner_takes_it_all"
 SPECIAL_CATCH_UP = "catch_up_mode"
 SPECIAL_WHEEL = "wheel_of_fortune"
+SPECIAL_MATCH_FIXER = "match_fixer"
+SPECIAL_KING_FIXER = "king_fixer"
+SPECIAL_DONT_UNDERESTIMATE = "dont_underestimate_my_power"
 
 SPECIAL_KEYS = (
     SPECIAL_DOUBLER,
@@ -31,6 +35,9 @@ SPECIAL_KEYS = (
     SPECIAL_WINNER_TAKES_ALL,
     SPECIAL_CATCH_UP,
     SPECIAL_WHEEL,
+    SPECIAL_MATCH_FIXER,
+    SPECIAL_KING_FIXER,
+    SPECIAL_DONT_UNDERESTIMATE,
 )
 MANUAL_MATCH_SPECIAL_KEYS = (
     SPECIAL_DOUBLER,
@@ -38,11 +45,15 @@ MANUAL_MATCH_SPECIAL_KEYS = (
     SPECIAL_KING_OF_THE_HILL,
     SPECIAL_WINNER_TAKES_ALL,
     SPECIAL_WHEEL,
+    SPECIAL_MATCH_FIXER,
+    SPECIAL_KING_FIXER,
+    SPECIAL_DONT_UNDERESTIMATE,
 )
 MATCH_RELATED_AWARD_SOURCE_TYPES = (
     MATCH_PERFORMANCE_ADJUSTMENT_SOURCE_TYPE,
     BETTING_SOURCE_TYPE,
     DOUBLE_OR_NOTHING_BONUS_SOURCE_TYPE,
+    MATCH_SPECIAL_BONUS_SOURCE_TYPE,
 )
 SPECIAL_OVERRIDE_PREFIX = "special_override:"
 WHEEL_MULTIPLIERS = (0.1, 0.5, 1.2, 1.5, 2.0, 3.0)
@@ -140,6 +151,12 @@ class SpecialService:
             if multiplier is not None:
                 return f"🎡x{multiplier:g}"
             return "🎡"
+        if special_key == SPECIAL_MATCH_FIXER:
+            return "🛠️+"
+        if special_key == SPECIAL_KING_FIXER:
+            return "👑🛠️"
+        if special_key == SPECIAL_DONT_UNDERESTIMATE:
+            return "⚔️"
         return "✨"
 
     @staticmethod
@@ -151,6 +168,9 @@ class SpecialService:
             SPECIAL_WINNER_TAKES_ALL: "The winner takes it all",
             SPECIAL_CATCH_UP: "Catch-up mode",
             SPECIAL_WHEEL: "Wheel of Fortune",
+            SPECIAL_MATCH_FIXER: "Match Fixer",
+            SPECIAL_KING_FIXER: "King Fixer",
+            SPECIAL_DONT_UNDERESTIMATE: "Don't underestimate my power",
         }.get(special_key, special_key.replace("_", " ").title())
 
     def get_special_override_mode(self, *, participant_user_id: int, special_key: str) -> str:
@@ -283,6 +303,45 @@ class SpecialService:
                 icon=self.badge_for_special(SPECIAL_WHEEL),
                 summary="Spins a random multiplier or penalty for one selected upcoming match.",
                 unlock_rule="Unlocked after your second loss. You can only hold one copy and use it once.",
+            ),
+            SpecialDefinition(
+                key=SPECIAL_MATCH_FIXER,
+                title="Match Fixer",
+                icon=self.badge_for_special(SPECIAL_MATCH_FIXER),
+                summary=(
+                    "On one of your own upcoming matches, gain 1 extra point for every bettor "
+                    "who predicted the final outcome correctly."
+                ),
+                unlock_rule=(
+                    "Unlocked once your positive betting winnings reach at least 1 point in total, "
+                    "ignoring betting losses. You can only use it once."
+                ),
+            ),
+            SpecialDefinition(
+                key=SPECIAL_KING_FIXER,
+                title="King Fixer",
+                icon=self.badge_for_special(SPECIAL_KING_FIXER),
+                summary=(
+                    "On one of your own upcoming matches, gain 2 extra points for every bettor "
+                    "who predicted the final outcome correctly."
+                ),
+                unlock_rule=(
+                    "Unlocked once your positive betting winnings reach at least 10 points in total, "
+                    "ignoring betting losses. You can only use it once."
+                ),
+            ),
+            SpecialDefinition(
+                key=SPECIAL_DONT_UNDERESTIMATE,
+                title="Don't underestimate my power",
+                icon=self.badge_for_special(SPECIAL_DONT_UNDERESTIMATE),
+                summary=(
+                    "On one of your own upcoming matches, gain back the total points lost by bettors "
+                    "who predicted your side to lose and were wrong."
+                ),
+                unlock_rule=(
+                    "Unlocked once your betting losses reach at least 5 points in total, "
+                    "ignoring betting wins. You can only use it once."
+                ),
             ),
         ]
 
@@ -427,6 +486,38 @@ class SpecialService:
             points += KING_OF_THE_HILL_WIN_BONUS
         return points
 
+    def _bet_positive_and_negative_totals(self) -> tuple[dict[int, float], dict[int, float]]:
+        positive_totals = {participant.user_id: 0.0 for participant in self.repo.list_participants()}
+        negative_totals = {participant.user_id: 0.0 for participant in self.repo.list_participants()}
+
+        for award in self.repo.list_competition_point_awards(source_type=BETTING_SOURCE_TYPE):
+            user_id = int(award.participant_user_id)
+            points = float(award.points_awarded)
+            if points > 0:
+                positive_totals[user_id] = positive_totals.get(user_id, 0.0) + points
+            elif points < 0:
+                negative_totals[user_id] = negative_totals.get(user_id, 0.0) + abs(points)
+
+        return positive_totals, negative_totals
+
+    @staticmethod
+    def _special_bonus_match_and_key(source_key: str) -> Optional[tuple[int, str]]:
+        if not source_key.startswith("match:"):
+            return None
+        parts = source_key.split(":")
+        if len(parts) < 3:
+            return None
+        try:
+            match_id = int(parts[1])
+        except ValueError:
+            return None
+        special_key = ":".join(parts[2:])
+        return match_id, special_key
+
+    @staticmethod
+    def _opposite_win_outcome_for_side(side_number: int) -> str:
+        return "side2_win" if side_number == 1 else "side1_win"
+
     def _cleanup_king_of_the_hill_activations(
         self,
         *,
@@ -482,10 +573,26 @@ class SpecialService:
         participant_rows = self.repo.list_match_participant_rows(completed_match_ids)
         activations = self.repo.list_match_special_activations(match_ids=completed_match_ids)
         threshold = self.get_catch_up_threshold()
+        special_bonus_points_by_match_and_user: dict[tuple[int, int], float] = {}
+        for award in self.repo.list_competition_point_awards(source_type=MATCH_SPECIAL_BONUS_SOURCE_TYPE):
+            parsed = self._special_bonus_match_and_key(award.source_key)
+            if parsed is None:
+                continue
+            award_match_id, _special_key = parsed
+            key = (award_match_id, int(award.participant_user_id))
+            special_bonus_points_by_match_and_user[key] = round(
+                special_bonus_points_by_match_and_user.get(key, 0.0) + float(award.points_awarded),
+                4,
+            )
 
         participants_by_match: dict[int, list[dict[str, object]]] = {}
+        participant_side_by_match_and_user: dict[tuple[int, int], int] = {}
         for row in participant_rows:
-            participants_by_match.setdefault(int(row["match_id"]), []).append(row)
+            match_id = int(row["match_id"])
+            user_id = int(row["user_id"])
+            side_number = int(row["side_number"])
+            participants_by_match.setdefault(match_id, []).append(row)
+            participant_side_by_match_and_user[(match_id, user_id)] = side_number
 
         activations_by_match_and_user: dict[tuple[int, int], list[MatchSpecialActivation]] = {}
         activations_by_user: dict[int, list[MatchSpecialActivation]] = {}
@@ -595,6 +702,15 @@ class SpecialService:
                         totals[user_id] = totals.get(user_id, 0.0) + float(first_record["points"]) + float(second_record["points"])
                     resolved_don_activation_ids.add(activation.id)
 
+            for (bonus_match_id, user_id), bonus_points in special_bonus_points_by_match_and_user.items():
+                if bonus_match_id != match_id or abs(bonus_points) <= 1e-9:
+                    continue
+                point_map[(match_id, user_id)] = round(
+                    point_map.get((match_id, user_id), 0.0) + bonus_points,
+                    4,
+                )
+                totals[user_id] = totals.get(user_id, 0.0) + bonus_points
+
         return point_map
 
     def sync_current_special_state(self, *, now_iso: Optional[str] = None) -> None:
@@ -635,6 +751,7 @@ class SpecialService:
         last_place_user_ids = self.get_current_last_place_user_ids()
         first_place_user_ids = self.get_current_first_place_user_ids()
         catch_up_user_ids = self.get_current_catch_up_user_ids()
+        positive_betting_totals, negative_betting_totals = self._bet_positive_and_negative_totals()
 
         for participant in participants:
             user_id = participant.user_id
@@ -667,6 +784,21 @@ class SpecialService:
                     is_active = is_pending
                 elif special_key == SPECIAL_WHEEL:
                     is_available = is_pending or ((not has_been_used) and losses_by_user.get(user_id, 0) >= 2)
+                    is_active = is_pending
+                elif special_key == SPECIAL_MATCH_FIXER:
+                    is_available = is_pending or (
+                        (not has_been_used) and positive_betting_totals.get(user_id, 0.0) >= 1.0
+                    )
+                    is_active = is_pending
+                elif special_key == SPECIAL_KING_FIXER:
+                    is_available = is_pending or (
+                        (not has_been_used) and positive_betting_totals.get(user_id, 0.0) >= 10.0
+                    )
+                    is_active = is_pending
+                elif special_key == SPECIAL_DONT_UNDERESTIMATE:
+                    is_available = is_pending or (
+                        (not has_been_used) and negative_betting_totals.get(user_id, 0.0) >= 5.0
+                    )
                     is_active = is_pending
                 else:
                     is_available = user_id in catch_up_user_ids
@@ -769,6 +901,302 @@ class SpecialService:
 
         rows.sort(key=lambda item: str(item["name"]).lower())
         return rows
+
+    def _compute_special_bonus_totals_and_usage_counts(
+        self,
+    ) -> tuple[dict[tuple[int, str], float], dict[tuple[int, str], int]]:
+        bonus_totals: dict[tuple[int, str], float] = {}
+        usage_counts: dict[tuple[int, str], int] = {}
+
+        all_activations = self.repo.list_match_special_activations()
+        for activation in all_activations:
+            key = (activation.participant_user_id, activation.special_key)
+            usage_counts[key] = usage_counts.get(key, 0) + 1
+
+        for award in self.repo.list_competition_point_awards(source_type=MATCH_SPECIAL_BONUS_SOURCE_TYPE):
+            parsed = self._special_bonus_match_and_key(award.source_key)
+            if parsed is None:
+                continue
+            _match_id, special_key = parsed
+            key = (int(award.participant_user_id), special_key)
+            bonus_totals[key] = round(
+                bonus_totals.get(key, 0.0) + float(award.points_awarded),
+                4,
+            )
+
+        totals = {participant.user_id: 0.0 for participant in self.repo.list_participants()}
+        for award in self.repo.list_competition_point_award_rows():
+            if award["source_type"] in MATCH_RELATED_AWARD_SOURCE_TYPES:
+                continue
+            user_id = int(award["participant_user_id"])
+            totals[user_id] = totals.get(user_id, 0.0) + float(award["points_awarded"])
+
+        completed_match_rows = self.repo.list_completed_match_rows_for_scoring()
+        completed_match_ids = [int(row["match_id"]) for row in completed_match_rows]
+        participant_rows = self.repo.list_match_participant_rows(completed_match_ids)
+        activations = self.repo.list_match_special_activations(match_ids=completed_match_ids)
+        bets = self.repo.list_match_bets(match_ids=completed_match_ids, include_settled=True)
+        threshold = self.get_catch_up_threshold()
+        special_bonus_points_by_match_and_user: dict[tuple[int, int], float] = {}
+        for award in self.repo.list_competition_point_awards(source_type=MATCH_SPECIAL_BONUS_SOURCE_TYPE):
+            parsed = self._special_bonus_match_and_key(award.source_key)
+            if parsed is None:
+                continue
+            match_id, _special_key = parsed
+            key = (match_id, int(award.participant_user_id))
+            special_bonus_points_by_match_and_user[key] = round(
+                special_bonus_points_by_match_and_user.get(key, 0.0) + float(award.points_awarded),
+                4,
+            )
+
+        participants_by_match: dict[int, list[dict[str, object]]] = {}
+        participant_side_by_match_and_user: dict[tuple[int, int], int] = {}
+        for row in participant_rows:
+            match_id = int(row["match_id"])
+            user_id = int(row["user_id"])
+            side_number = int(row["side_number"])
+            participants_by_match.setdefault(match_id, []).append(row)
+            participant_side_by_match_and_user[(match_id, user_id)] = side_number
+
+        activations_by_match_and_user: dict[tuple[int, int], list[MatchSpecialActivation]] = {}
+        activations_by_user: dict[int, list[MatchSpecialActivation]] = {}
+        activations_by_match: dict[int, list[MatchSpecialActivation]] = {}
+        for activation in activations:
+            key = (activation.match_id, activation.participant_user_id)
+            activations_by_match_and_user.setdefault(key, []).append(activation)
+            activations_by_user.setdefault(activation.participant_user_id, []).append(activation)
+            activations_by_match.setdefault(activation.match_id, []).append(activation)
+
+        for activation_list in activations_by_match_and_user.values():
+            activation_list.sort(key=self._activation_sort_key)
+        for activation_list in activations_by_user.values():
+            activation_list.sort(key=self._activation_sort_key)
+        for activation_list in activations_by_match.values():
+            activation_list.sort(key=self._activation_sort_key)
+
+        bets_by_match: dict[int, list] = {}
+        for bet in bets:
+            bets_by_match.setdefault(bet.match_id, []).append(bet)
+
+        completed_records_by_user: dict[int, list[dict[str, object]]] = {}
+        resolved_don_activation_ids: set[int] = set()
+
+        for match_row in completed_match_rows:
+            match_id = int(match_row["match_id"])
+            outcome = str(match_row["outcome"])
+            entered_at = str(match_row["entered_at"])
+            winner_takes_all_active = self._match_has_winner_takes_all_activation(
+                match_activations=activations_by_match.get(match_id, []),
+                outcome=outcome,
+            )
+
+            leader_total = max(totals.values()) if totals else 0.0
+            catch_up_users = {
+                user_id
+                for user_id, total in totals.items()
+                if (leader_total - total) > threshold
+            }
+            catch_up_usage_for_match: set[int] = set()
+
+            for participant_row in participants_by_match.get(match_id, []):
+                user_id = int(participant_row["user_id"])
+                side_number = int(participant_row["side_number"])
+                player_outcome = self._participant_outcome(outcome, side_number)
+                standard_base_points = POINTS[player_outcome]
+                match_user_activations = activations_by_match_and_user.get((match_id, user_id), [])
+                king_of_the_hill_active = self._match_has_special_for_user(
+                    match_activations_for_user=match_user_activations,
+                    special_key=SPECIAL_KING_OF_THE_HILL,
+                )
+                performance_base_points = self._base_points_for_match_outcome(
+                    player_outcome=player_outcome,
+                    king_of_the_hill_active=king_of_the_hill_active,
+                    winner_takes_all_active=winner_takes_all_active,
+                )
+
+                doubler_active = False
+                wheel_multiplier = 1.0
+                for activation in match_user_activations:
+                    if activation.special_key == SPECIAL_DOUBLER:
+                        doubler_active = True
+                    elif activation.special_key == SPECIAL_WHEEL and activation.payload_json:
+                        try:
+                            wheel_multiplier *= float(json.loads(activation.payload_json).get("multiplier", 1.0))
+                        except Exception:
+                            wheel_multiplier *= 1.0
+
+                doubler_factor = 2.0 if doubler_active else 1.0
+                catch_up_factor = 2.0 if user_id in catch_up_users else 1.0
+                final_points = round(
+                    performance_base_points * doubler_factor * wheel_multiplier * catch_up_factor,
+                    4,
+                )
+
+                if king_of_the_hill_active:
+                    no_koth_base = self._base_points_for_match_outcome(
+                        player_outcome=player_outcome,
+                        king_of_the_hill_active=False,
+                        winner_takes_all_active=winner_takes_all_active,
+                    )
+                    bonus = round(
+                        final_points - (no_koth_base * doubler_factor * wheel_multiplier * catch_up_factor),
+                        4,
+                    )
+                    bonus_totals[(user_id, SPECIAL_KING_OF_THE_HILL)] = round(
+                        bonus_totals.get((user_id, SPECIAL_KING_OF_THE_HILL), 0.0) + bonus,
+                        4,
+                    )
+
+                if winner_takes_all_active:
+                    no_wta_base = self._base_points_for_match_outcome(
+                        player_outcome=player_outcome,
+                        king_of_the_hill_active=king_of_the_hill_active,
+                        winner_takes_all_active=False,
+                    )
+                    bonus = round(
+                        final_points - (no_wta_base * doubler_factor * wheel_multiplier * catch_up_factor),
+                        4,
+                    )
+                    bonus_totals[(user_id, SPECIAL_WINNER_TAKES_ALL)] = round(
+                        bonus_totals.get((user_id, SPECIAL_WINNER_TAKES_ALL), 0.0) + bonus,
+                        4,
+                    )
+
+                if doubler_active:
+                    bonus = round(
+                        final_points - (performance_base_points * wheel_multiplier * catch_up_factor),
+                        4,
+                    )
+                    bonus_totals[(user_id, SPECIAL_DOUBLER)] = round(
+                        bonus_totals.get((user_id, SPECIAL_DOUBLER), 0.0) + bonus,
+                        4,
+                    )
+
+                if abs(wheel_multiplier - 1.0) > 1e-9:
+                    bonus = round(
+                        final_points - (performance_base_points * doubler_factor * catch_up_factor),
+                        4,
+                    )
+                    bonus_totals[(user_id, SPECIAL_WHEEL)] = round(
+                        bonus_totals.get((user_id, SPECIAL_WHEEL), 0.0) + bonus,
+                        4,
+                    )
+
+                if user_id in catch_up_users:
+                    catch_up_usage_for_match.add(user_id)
+                    bonus = round(
+                        final_points - (performance_base_points * doubler_factor * wheel_multiplier),
+                        4,
+                    )
+                    bonus_totals[(user_id, SPECIAL_CATCH_UP)] = round(
+                        bonus_totals.get((user_id, SPECIAL_CATCH_UP), 0.0) + bonus,
+                        4,
+                    )
+
+                totals[user_id] = totals.get(user_id, 0.0) + final_points
+                completed_records_by_user.setdefault(user_id, []).append(
+                    {
+                        "match_id": match_id,
+                        "entered_at": entered_at,
+                        "player_outcome": player_outcome,
+                        "final_points": final_points,
+                    }
+                )
+
+            for bet in bets_by_match.get(match_id, []):
+                base_net_points = float(bet.stake_points if bet.predicted_outcome == outcome else -bet.stake_points)
+                if bet.participant_user_id in catch_up_users:
+                    catch_up_usage_for_match.add(bet.participant_user_id)
+                    bonus_totals[(bet.participant_user_id, SPECIAL_CATCH_UP)] = round(
+                        bonus_totals.get((bet.participant_user_id, SPECIAL_CATCH_UP), 0.0) + base_net_points,
+                        4,
+                    )
+
+            for user_id in catch_up_usage_for_match:
+                usage_counts[(user_id, SPECIAL_CATCH_UP)] = usage_counts.get((user_id, SPECIAL_CATCH_UP), 0) + 1
+
+            affected_user_ids = {
+                int(row["user_id"])
+                for row in participants_by_match.get(match_id, [])
+            }
+            for user_id in affected_user_ids:
+                user_records = completed_records_by_user.get(user_id, [])
+                for activation in activations_by_user.get(user_id, []):
+                    if (
+                        activation.special_key != SPECIAL_DOUBLE_OR_NOTHING
+                        or activation.id in resolved_don_activation_ids
+                    ):
+                        continue
+                    eligible_records = [
+                        record for record in user_records
+                        if self._record_is_in_activation_window(activation, record)
+                    ]
+                    if len(eligible_records) < 2:
+                        continue
+                    if eligible_records[1]["player_outcome"] == "win":
+                        bonus_points = round(
+                            float(eligible_records[0]["final_points"]) + float(eligible_records[1]["final_points"]),
+                            4,
+                        )
+                        bonus_totals[(user_id, SPECIAL_DOUBLE_OR_NOTHING)] = round(
+                            bonus_totals.get((user_id, SPECIAL_DOUBLE_OR_NOTHING), 0.0) + bonus_points,
+                            4,
+                        )
+                        totals[user_id] = totals.get(user_id, 0.0) + bonus_points
+                    resolved_don_activation_ids.add(activation.id)
+
+            for (bonus_match_id, user_id), bonus_points in special_bonus_points_by_match_and_user.items():
+                if bonus_match_id != match_id or abs(bonus_points) <= 1e-9:
+                    continue
+                totals[user_id] = totals.get(user_id, 0.0) + bonus_points
+
+        return bonus_totals, usage_counts
+
+    def build_special_player_stats(self) -> dict[str, list[dict[str, object]]]:
+        def _status_priority(status: str) -> int:
+            if status.startswith("active"):
+                return 0
+            if status.startswith("available"):
+                return 1
+            if status.startswith("used"):
+                return 2
+            return 3
+
+        special_rows = self.list_special_status_rows()
+        by_user_id = {
+            int(row["user_id"]): row
+            for row in special_rows
+        }
+        bonus_totals, usage_counts = self._compute_special_bonus_totals_and_usage_counts()
+
+        grouped: dict[str, list[dict[str, object]]] = {special_key: [] for special_key in SPECIAL_KEYS}
+        for row in special_rows:
+            user_id = int(row["user_id"])
+            for special_key in SPECIAL_KEYS:
+                status = str(row[special_key])
+                active_now = status.startswith("active")
+                grouped[special_key].append(
+                    {
+                        "user_id": user_id,
+                        "name": str(row["name"]),
+                        "status": status,
+                        "active_now": active_now,
+                        "times_used": usage_counts.get((user_id, special_key), 0),
+                        "bonus_points": round(float(bonus_totals.get((user_id, special_key), 0.0)), 1),
+                        "override": str(by_user_id[user_id].get(f"{special_key}_override", "auto")),
+                    }
+                )
+
+        for rows in grouped.values():
+            rows.sort(
+                key=lambda item: (
+                    _status_priority(str(item["status"])),
+                    -float(item["bonus_points"]),
+                    -int(item["times_used"]),
+                    str(item["name"]).lower(),
+                )
+            )
+        return grouped
 
     def activate_match_special(
         self,
@@ -898,8 +1326,13 @@ class SpecialService:
         threshold = self.get_catch_up_threshold()
 
         participants_by_match: dict[int, list[dict[str, object]]] = {}
+        participant_side_by_match_and_user: dict[tuple[int, int], int] = {}
         for row in participant_rows:
-            participants_by_match.setdefault(int(row["match_id"]), []).append(row)
+            match_id = int(row["match_id"])
+            user_id = int(row["user_id"])
+            side_number = int(row["side_number"])
+            participants_by_match.setdefault(match_id, []).append(row)
+            participant_side_by_match_and_user[(match_id, user_id)] = side_number
 
         activations_by_match_and_user: dict[tuple[int, int], list[MatchSpecialActivation]] = {}
         activations_by_user: dict[int, list[MatchSpecialActivation]] = {}
@@ -996,6 +1429,7 @@ class SpecialService:
                     }
                 )
 
+            settled_bets_for_match: list[tuple[object, float]] = []
             for bet in bets_by_match.get(match_id, []):
                 net_points = bet.stake_points if bet.predicted_outcome == outcome else -bet.stake_points
                 if bet.participant_user_id in catch_up_users:
@@ -1016,7 +1450,51 @@ class SpecialService:
                     settled_at=entered_at,
                     net_points=net_points,
                 )
+                settled_bets_for_match.append((bet, net_points))
                 totals[bet.participant_user_id] = totals.get(bet.participant_user_id, 0.0) + net_points
+
+            correct_bettor_count = sum(
+                1
+                for bet, _net_points in settled_bets_for_match
+                if bet.predicted_outcome == outcome
+            )
+
+            for participant_row in participants_by_match.get(match_id, []):
+                user_id = int(participant_row["user_id"])
+                side_number = participant_side_by_match_and_user.get((match_id, user_id))
+                if side_number is None:
+                    continue
+                for activation in activations_by_match_and_user.get((match_id, user_id), []):
+                    bonus_points = 0.0
+                    if activation.special_key == SPECIAL_MATCH_FIXER:
+                        bonus_points = float(correct_bettor_count)
+                    elif activation.special_key == SPECIAL_KING_FIXER:
+                        bonus_points = float(correct_bettor_count * 2)
+                    elif activation.special_key == SPECIAL_DONT_UNDERESTIMATE:
+                        opposite_prediction = self._opposite_win_outcome_for_side(side_number)
+                        bonus_points = round(
+                            sum(
+                                abs(net_points)
+                                for bet, net_points in settled_bets_for_match
+                                if bet.predicted_outcome == opposite_prediction and net_points < 0
+                            ),
+                            4,
+                        )
+
+                    if abs(bonus_points) <= 1e-9:
+                        continue
+
+                    self.repo.upsert_competition_point_award(
+                        participant_user_id=user_id,
+                        source_type=MATCH_SPECIAL_BONUS_SOURCE_TYPE,
+                        source_key=f"match:{match_id}:{activation.special_key}",
+                        source_label=f"{self.special_label(activation.special_key)} bonus",
+                        placement=None,
+                        points_awarded=bonus_points,
+                        awarded_at=entered_at,
+                        awarded_by_user_id=None,
+                    )
+                    totals[user_id] = totals.get(user_id, 0.0) + bonus_points
 
             affected_user_ids = {
                 int(row["user_id"])

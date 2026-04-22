@@ -3,12 +3,12 @@ from __future__ import annotations
 import streamlit as st
 
 from tournament_tracker.branding import render_bottom_decoration, render_page_intro
-from tournament_tracker.bootstrap import get_services
+from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.session import get_current_user, get_initial_page_for_user, render_sidebar
 
 st.set_page_config(page_title="Registration Help", page_icon="✉️", layout="centered")
 
-services = get_services()
+services = get_runtime_services()
 current_user = get_current_user(services)
 render_sidebar(current_user)
 

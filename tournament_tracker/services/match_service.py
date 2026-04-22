@@ -169,10 +169,12 @@ class MatchService:
         if not existing:
             raise NotFoundError("Match not found.")
         self.repo.delete_match(match_id)
+        if self.special_service is not None:
+            self.special_service.recalculate_match_competition_state()
         self.repo.log_activity(
             event_type="match_deleted",
             message=f"Match deleted: {existing.game_type} (#{match_id})",
-            related_match_id=match_id,
+            related_match_id=None,
             created_at=utc_now_iso(),
         )
 
@@ -407,6 +409,6 @@ class MatchService:
                 eligible.append(card)
         return eligible
 
-    def list_recent_activity(self, limit: int = 10) -> list[dict[str, str]]:
+    def list_recent_activity(self, limit: Optional[int] = 10) -> list[dict[str, str]]:
         items = self.repo.list_recent_activity(limit=limit)
         return [{"timestamp": item.timestamp, "message": item.message} for item in items]

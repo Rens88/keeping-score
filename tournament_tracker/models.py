@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -165,6 +165,18 @@ class MatchBet:
 
 
 @dataclass(slots=True)
+class AuthSession:
+    id: int
+    user_id: int
+    token_hash: str
+    created_at: str
+    updated_at: str
+    expires_at: str
+    last_used_at: Optional[str]
+    revoked_at: Optional[str]
+
+
+@dataclass(slots=True)
 class ParticipantSpecial:
     participant_user_id: int
     special_key: str
@@ -186,6 +198,29 @@ class MatchSpecialActivation:
     activated_at: str
     activated_by_user_id: int
     payload_json: Optional[str]
+
+
+@dataclass(slots=True)
+class RankedEvent:
+    id: int
+    title: str
+    scheduled_at: Optional[str]
+    scheduled_order: Optional[int]
+    status: str
+    award_scheme: str
+    created_by_user_id: int
+    created_at: str
+    updated_at: str
+
+
+@dataclass(slots=True)
+class RankedEventResult:
+    id: int
+    ranked_event_id: int
+    participant_user_id: int
+    placement: int
+    entered_at: str
+    entered_by_user_id: Optional[int]
 
 
 @dataclass(slots=True)
@@ -270,4 +305,4 @@ class ActivityItem:
 
 
 def utc_now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")

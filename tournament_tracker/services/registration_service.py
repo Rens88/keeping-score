@@ -110,7 +110,7 @@ class RegistrationService:
                 {"key": "D", "label": "Wijchen"},
             ),
             "correctAnswer": "C",
-            "hint": "De eindlocatie ligt net onder deze plaats.",
+            "hint": "De eindlocatie ligt net ten noorden van deze plaats.",
         },
         {
             "question": "Welke van deze plaatsen ligt in Noord-Brabant?",

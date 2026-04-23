@@ -389,3 +389,12 @@ Requested Changes (summarized)
 74. Startup auto-restore from off-site backups:
 - When the local SQLite database is missing, empty, corrupt, or otherwise lacks tables on startup, attempt to restore the newest off-site backup automatically before normal migrations boot the app.
 - Keep this restore path safe by leaving healthy local databases alone, exposing the last auto-restore in the admin backup status, and allowing the behavior to be toggled with `BACKUP_AUTO_RESTORE_ON_STARTUP`.
+
+75. Simon Says wording and visibility cleanup:
+- Replace the remaining `hoge score` participant-facing minigame instruction with the English `high score`.
+- Make the Simon Says instructions explicitly tell players to follow the colors rather than the words, especially once word/STROOP modes begin.
+- Improve the reveal phase by holding the first color longer and making the shown pattern stand out more visually.
+- Remove the duplicated three-layer color wording in the playable Simon grid so each option is shown once through a single styled button.
+
+76. Simon Says reveal speed scaling:
+- After every 4 rounds, speed up the Simon Says example reveal by reducing each shown color duration by 20%, while keeping a floor of 0.2 seconds so later rounds remain visible.

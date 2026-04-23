@@ -43,6 +43,7 @@ all_matches = services.repo.list_matches()
 live_matches = [m for m in all_matches if m.status == "live"]
 upcoming_matches = [m for m in all_matches if m.status == "upcoming"]
 completed_matches = [m for m in all_matches if m.status == "completed"]
+backup_status = services.backup_service.get_offsite_backup_status()
 
 render_stat_tiles(
     [
@@ -53,6 +54,27 @@ render_stat_tiles(
     ]
 )
 
+st.divider()
+st.subheader("Backup Status")
+with st.container(border=True):
+    render_stat_tiles(
+        [
+            ("Off-site backup", backup_status.status_label),
+            ("Last successful backup", backup_status.last_success_at or "Never"),
+            ("Backup target", backup_status.bucket or "Not configured"),
+        ]
+    )
+    st.caption(backup_status.detail_message)
+    if backup_status.endpoint:
+        st.caption(f"Endpoint: {backup_status.endpoint}")
+    if backup_status.last_object_key:
+        st.caption(f"Latest uploaded object: {backup_status.last_object_key}")
+    if backup_status.last_error_message:
+        st.warning(
+            "Latest backup error"
+            + (f" ({backup_status.last_error_at})" if backup_status.last_error_at else "")
+            + f": {backup_status.last_error_message}"
+        )
 
 def _participant_name(participant: object) -> str:
     display_name = getattr(participant, "display_name", None)

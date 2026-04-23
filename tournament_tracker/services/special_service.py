@@ -1198,6 +1198,46 @@ class SpecialService:
             )
         return grouped
 
+    def build_leaderboard_special_icon_map(
+        self,
+        participant_user_ids: Optional[list[int]] = None,
+    ) -> dict[int, list[dict[str, str]]]:
+        self.sync_current_special_state()
+        filter_ids = set(participant_user_ids) if participant_user_ids else None
+        icon_map: dict[int, list[dict[str, str]]] = {}
+
+        for special in self.repo.list_participant_specials():
+            user_id = int(special.participant_user_id)
+            if filter_ids is not None and user_id not in filter_ids:
+                continue
+
+            is_current = bool(special.is_available or special.is_active)
+            was_used = bool(special.activated_at or special.resolved_at)
+            if not is_current and not was_used:
+                continue
+
+            icon_map.setdefault(user_id, []).append(
+                {
+                    "key": special.special_key,
+                    "icon": self.badge_for_special(special.special_key, special.payload_json),
+                    "label": self.special_label(special.special_key),
+                    "state": "current" if is_current else "used",
+                }
+            )
+
+        ordered_map: dict[int, list[dict[str, str]]] = {}
+        for user_id, icons in icon_map.items():
+            icons.sort(
+                key=lambda item: (
+                    0 if item["state"] == "current" else 1,
+                    SPECIAL_KEYS.index(item["key"]),
+                    item["label"].lower(),
+                )
+            )
+            ordered_map[user_id] = icons
+
+        return ordered_map
+
     def activate_match_special(
         self,
         *,

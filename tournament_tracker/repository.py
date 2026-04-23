@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import sqlite3
 import tempfile
-from typing import Any, Iterable, Iterator, Optional
+from typing import Any, Callable, Iterable, Iterator, Optional
 
 from tournament_tracker.models import (
     ActivityItem,
@@ -57,20 +57,32 @@ class SQLiteRepository:
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._table_columns_cache: dict[str, set[str]] = {}
+        self._after_write_hook: Optional[Callable[[], None]] = None
 
     @contextmanager
-    def connection(self) -> Iterator[sqlite3.Connection]:
+    def connection(self, *, trigger_backup: bool = True) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        wrote_data = False
         try:
+            starting_changes = int(conn.total_changes)
             yield conn
+            wrote_data = int(conn.total_changes) > starting_changes
             conn.commit()
         except Exception:
             conn.rollback()
             raise
         finally:
             conn.close()
+        if wrote_data and trigger_backup and self._after_write_hook is not None:
+            try:
+                self._after_write_hook()
+            except Exception:
+                pass
+
+    def set_after_write_hook(self, hook: Optional[Callable[[], None]]) -> None:
+        self._after_write_hook = hook
 
     def apply_migrations(self) -> None:
         migrations_dir = Path(__file__).parent / "migrations"
@@ -790,7 +802,7 @@ class SQLiteRepository:
         created_at: str,
         expires_at: str,
     ) -> AuthSession:
-        with self.connection() as conn:
+        with self.connection(trigger_backup=False) as conn:
             cursor = conn.execute(
                 """
                 INSERT INTO auth_sessions (
@@ -833,7 +845,7 @@ class SQLiteRepository:
         return self._row_to_auth_session(row) if row else None
 
     def touch_auth_session(self, *, session_id: int, now_iso: str) -> Optional[AuthSession]:
-        with self.connection() as conn:
+        with self.connection(trigger_backup=False) as conn:
             conn.execute(
                 """
                 UPDATE auth_sessions
@@ -846,7 +858,7 @@ class SQLiteRepository:
         return self._row_to_auth_session(row) if row else None
 
     def revoke_auth_session_by_token_hash(self, *, token_hash: str, revoked_at: str) -> None:
-        with self.connection() as conn:
+        with self.connection(trigger_backup=False) as conn:
             conn.execute(
                 """
                 UPDATE auth_sessions
@@ -858,7 +870,7 @@ class SQLiteRepository:
             )
 
     def revoke_auth_sessions_for_user(self, *, user_id: int, revoked_at: str) -> None:
-        with self.connection() as conn:
+        with self.connection(trigger_backup=False) as conn:
             conn.execute(
                 """
                 UPDATE auth_sessions
@@ -2801,8 +2813,8 @@ class SQLiteRepository:
             rows = conn.execute(sql, params).fetchall()
         return {str(row["setting_key"]): str(row["setting_value"]) for row in rows}
 
-    def set_app_setting(self, *, key: str, value: str, updated_at: str) -> None:
-        with self.connection() as conn:
+    def set_app_setting(self, *, key: str, value: str, updated_at: str, trigger_backup: bool = True) -> None:
+        with self.connection(trigger_backup=trigger_backup) as conn:
             conn.execute(
                 """
                 INSERT INTO app_settings (setting_key, setting_value, updated_at)
@@ -2813,8 +2825,8 @@ class SQLiteRepository:
                 (key, value, updated_at),
             )
 
-    def delete_app_setting(self, key: str) -> None:
-        with self.connection() as conn:
+    def delete_app_setting(self, key: str, *, trigger_backup: bool = True) -> None:
+        with self.connection(trigger_backup=trigger_backup) as conn:
             conn.execute(
                 "DELETE FROM app_settings WHERE setting_key = ?",
                 (key,),

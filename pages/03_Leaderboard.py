@@ -17,5 +17,15 @@ render_page_intro("Leaderboard", "Current standings with bonus points, totals, a
 leaderboard = services.ranking_service.compute_leaderboard()
 point_ledger_builder = getattr(services.ranking_service, "build_point_ledger_map", None)
 point_ledger_map = point_ledger_builder([row.user_id for row in leaderboard]) if callable(point_ledger_builder) else {}
-render_leaderboard(leaderboard, point_ledger_by_user_id=point_ledger_map)
+special_icon_builder = getattr(services.special_service, "build_leaderboard_special_icon_map", None)
+special_icon_map = (
+    special_icon_builder([row.user_id for row in leaderboard])
+    if callable(special_icon_builder)
+    else {}
+)
+render_leaderboard(
+    leaderboard,
+    point_ledger_by_user_id=point_ledger_map,
+    special_icons_by_user_id=special_icon_map,
+)
 render_bottom_decoration()

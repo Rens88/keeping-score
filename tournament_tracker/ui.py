@@ -541,9 +541,28 @@ def _leaderboard_avatar_html(row: LeaderboardRow) -> str:
     return f'<div class="uc-board-avatar uc-board-avatar-fallback">{fallback}</div>'
 
 
+def _leaderboard_special_icons_html(icon_entries: Optional[list[dict[str, str]]]) -> str:
+    if not icon_entries:
+        return ""
+
+    icon_html: list[str] = ['<div class="uc-board-specials">']
+    for entry in icon_entries:
+        icon_state = "used" if str(entry.get("state", "")) == "used" else "current"
+        label = str(entry.get("label", "Special"))
+        title = f"{label} ({'used before' if icon_state == 'used' else 'available now'})"
+        icon_html.append(
+            f'<span class="uc-board-special is-{escape(icon_state)}" title="{escape(title)}">'
+            f'{escape(str(entry.get("icon", "✨")))}'
+            f"</span>"
+        )
+    icon_html.append("</div>")
+    return "".join(icon_html)
+
+
 def render_leaderboard(
     leaderboard: list[LeaderboardRow],
     point_ledger_by_user_id: Optional[dict[int, list[dict[str, object]]]] = None,
+    special_icons_by_user_id: Optional[dict[int, list[dict[str, str]]]] = None,
 ) -> None:
     if not leaderboard:
         st.info("No completed matches yet. Leaderboard will appear once results are entered.")
@@ -631,6 +650,44 @@ def render_leaderboard(
         font-weight: 900;
         line-height: 1.1;
         overflow-wrap: anywhere;
+    }
+
+    .uc-board-name-line {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .uc-board-specials {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.28rem;
+        flex-wrap: wrap;
+    }
+
+    .uc-board-special {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.55rem;
+        min-height: 1.55rem;
+        padding: 0.05rem 0.2rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(139, 115, 85, 0.18);
+        font-size: 0.82rem;
+        line-height: 1;
+    }
+
+    .uc-board-special.is-current {
+        filter: none;
+        opacity: 1;
+    }
+
+    .uc-board-special.is-used {
+        filter: grayscale(1);
+        opacity: 0.72;
     }
 
     .uc-board-motto {
@@ -834,10 +891,11 @@ def render_leaderboard(
 
     row_html: list[str] = ['<div class="uc-board-wrap">']
     for row in leaderboard:
-        doubler_status = "Used" if row.doubler_used else "Ready"
-        doubler_class = "is-used" if row.doubler_used else "is-ready"
         toggle_id = f"uc-board-toggle-{row.user_id}"
         ledger_rows = point_ledger_by_user_id.get(row.user_id, []) if point_ledger_by_user_id else []
+        special_icons_html = _leaderboard_special_icons_html(
+            special_icons_by_user_id.get(row.user_id, []) if special_icons_by_user_id else []
+        )
         ledger_html_parts = [
             """
         <div class="uc-board-ledger-wrap">
@@ -886,7 +944,10 @@ def render_leaderboard(
             {_leaderboard_avatar_html(row)}
             <div class="uc-board-name-wrap">
                 <label class="uc-board-name-toggle" for="{toggle_id}">
-                    <div class="uc-board-name">{escape(row.display_name)}</div>
+                    <div class="uc-board-name-line">
+                        <div class="uc-board-name">{escape(row.display_name)}</div>
+                        {special_icons_html}
+                    </div>
                     <div class="uc-board-motto">{escape(row.motto or "No motto yet")}</div>
                     <div class="uc-board-hint"></div>
                 </label>
@@ -910,10 +971,6 @@ def render_leaderboard(
             <div class="uc-board-chip">
                 <span class="uc-board-chip-label">Bonus</span>
                 <span class="uc-board-chip-value">{row.bonus_points:+.2f}</span>
-            </div>
-            <div class="uc-board-chip">
-                <span class="uc-board-chip-label">Doubler</span>
-                <span class="uc-board-chip-value {doubler_class}">{escape(doubler_status)}</span>
             </div>
         </div>
         {ledger_html}

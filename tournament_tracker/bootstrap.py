@@ -59,13 +59,38 @@ def _ranking_service_has_expected_capabilities(service: object) -> bool:
     )
 
 
+def _special_service_has_expected_capabilities(service: object) -> bool:
+    return all(
+        hasattr(service, attribute)
+        for attribute in (
+            "build_leaderboard_special_icon_map",
+            "build_special_player_stats",
+            "sync_current_special_state",
+        )
+    )
+
+
+def _backup_service_has_expected_capabilities(service: object) -> bool:
+    return all(
+        hasattr(service, attribute)
+        for attribute in (
+            "get_offsite_backup_status",
+            "run_offsite_backup_now",
+            "get_streamlit_secrets_template",
+        )
+    )
+
+
 def _services_have_expected_capabilities(services: object) -> bool:
     auth_service = getattr(services, "auth_service", None)
+    backup_service = getattr(services, "backup_service", None)
     ranking_service = getattr(services, "ranking_service", None)
+    special_service = getattr(services, "special_service", None)
     return bool(
         hasattr(getattr(services, "config", object()), "persistent_login_days")
         and hasattr(services, "minigame_service")
-        and hasattr(services, "special_service")
+        and special_service is not None
+        and backup_service is not None
         and hasattr(services, "betting_service")
         and hasattr(services, "ranked_event_service")
         and auth_service is not None
@@ -73,6 +98,8 @@ def _services_have_expected_capabilities(services: object) -> bool:
         and hasattr(auth_service, "restore_persistent_session")
         and ranking_service is not None
         and _ranking_service_has_expected_capabilities(ranking_service)
+        and _special_service_has_expected_capabilities(special_service)
+        and _backup_service_has_expected_capabilities(backup_service)
     )
 
 
@@ -132,7 +159,7 @@ def get_services() -> AppServices:
         config=config,
         repo=repo,
         auth_service=AuthService(repo, persistent_login_days=config.persistent_login_days),
-        backup_service=BackupService(repo),
+        backup_service=BackupService(repo, config),
         invitation_service=InvitationService(repo),
         match_service=match_service,
         ranking_service=ranking_service,
@@ -149,6 +176,12 @@ def _rebuild_services_from_existing(services: object) -> AppServices:
     config = getattr(services, "config")
     repo = getattr(services, "repo")
     persistent_login_days = getattr(config, "persistent_login_days", 30)
+    existing_backup_service = getattr(services, "backup_service", None)
+    backup_service = (
+        existing_backup_service
+        if existing_backup_service is not None and _backup_service_has_expected_capabilities(existing_backup_service)
+        else BackupService(repo, config)
+    )
     existing_ranking_service = getattr(services, "ranking_service", None)
     ranking_service = (
         existing_ranking_service
@@ -158,6 +191,7 @@ def _rebuild_services_from_existing(services: object) -> AppServices:
     existing_special_service = getattr(services, "special_service", None)
     if (
         existing_special_service is None
+        or not _special_service_has_expected_capabilities(existing_special_service)
         or getattr(existing_special_service, "ranking_service", None) is not ranking_service
     ):
         special_service = SpecialService(repo, ranking_service)
@@ -179,7 +213,7 @@ def _rebuild_services_from_existing(services: object) -> AppServices:
         config=config,
         repo=repo,
         auth_service=auth_service,
-        backup_service=getattr(services, "backup_service", BackupService(repo)),
+        backup_service=backup_service,
         invitation_service=getattr(services, "invitation_service", InvitationService(repo)),
         match_service=match_service,
         ranking_service=ranking_service,

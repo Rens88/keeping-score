@@ -375,3 +375,13 @@ Requested Changes (summarized)
 - Move head-to-head result entry/removal into Manage Schedule so both head-to-head and multi-competitor sections use create/edit/results/delete tabs.
 - Remove the option to leave the date/time empty, keep new games defaulting to `upcoming`, and make result entry set status to `completed` by default while still allowing result removal.
 - Use `Game type` wording for both head-to-head and multi-competitor forms instead of calling the multi-competitor field an event title.
+
+72. Simon Says stability pass and leaderboard special-icon overview:
+- Replace the Simon Says live fragment loop with a steadier reveal/input flow to reduce the high-churn websocket/cache pattern that was showing up around higher rounds, and fold in the requested rule twists: `Siemen Says` naming for Siemen, extra colors every 4 rounds, layout shuffles every 8 rounds, word mode from round 13, and a Stroop mode from round 17 onward.
+- Update the leaderboard cards so the folded player header shows current specials as full-color icons and previously used specials as grayscale icons, while removing the old doubler-only chip from the expanded stats.
+- Extend the cached-service capability checks so older cached special-service instances are rebuilt once the new leaderboard special-icon method is present.
+
+73. Automatic off-site backup support for Streamlit Cloud:
+- Add optional S3-compatible off-site backup configuration through env/Streamlit secrets so the app can upload fresh SQLite snapshots outside Streamlit Cloud after real tournament-data writes.
+- Surface backup health on the admin dashboard and the Backup & Restore page, including the last successful upload, latest object key, and latest error.
+- Add an admin-facing Streamlit Cloud secrets template and a Backblaze-specific checklist so the bucket endpoint, app key ID, and app key can be pasted in without putting credentials in the repo.

@@ -19,6 +19,51 @@ st.warning(
     "Handle backup files securely."
 )
 
+offsite_status = services.backup_service.get_offsite_backup_status()
+
+st.subheader("Automatic Off-Site Backup")
+with st.container(border=True):
+    st.markdown(f"**Status:** {offsite_status.status_label}")
+    st.caption(offsite_status.detail_message)
+    st.write(f"Provider: {offsite_status.provider_label}")
+    st.write(f"Bucket: {offsite_status.bucket or 'Not configured'}")
+    st.write(f"Endpoint: {offsite_status.endpoint or 'Not configured'}")
+    st.write(f"Region: {offsite_status.region or 'Not configured'}")
+    st.write(f"Prefix: {offsite_status.prefix or '-'}")
+    st.write(f"Last successful backup: {offsite_status.last_success_at or 'Never'}")
+    if offsite_status.last_object_key:
+        st.caption(f"Latest object key: `{offsite_status.last_object_key}`")
+    if offsite_status.last_error_message:
+        st.error(
+            "Latest backup error"
+            + (f" ({offsite_status.last_error_at})" if offsite_status.last_error_at else "")
+            + f": {offsite_status.last_error_message}"
+        )
+    if st.button("Run off-site backup now", width="stretch", key="run_offsite_backup_now"):
+        result = services.backup_service.run_offsite_backup_now()
+        if result.success:
+            st.success(result.message)
+            st.rerun()
+        elif result.attempted:
+            st.error(result.message)
+        else:
+            st.info(result.message)
+
+with st.expander("Streamlit Cloud secrets template", expanded=not offsite_status.configured):
+    st.caption(
+        "Paste this into your app's Secrets in Streamlit Community Cloud, then save and reboot the app."
+    )
+    st.code(services.backup_service.get_streamlit_secrets_template(), language="toml")
+    st.markdown(
+        "Backblaze setup checklist:\n"
+        "1. Create a **private** bucket in B2 Cloud Storage.\n"
+        "2. Open **Application Keys** and create a new key for that bucket.\n"
+        "3. Use a key with upload permission for that bucket. If Backblaze shows simple presets, `Read and Write` is the safest choice.\n"
+        "4. Copy the **S3 Endpoint**, **keyID**, and **applicationKey** from Backblaze.\n"
+        "5. Paste them into Streamlit Cloud secrets using the template above."
+    )
+
+st.divider()
 st.subheader("Export full state")
 st.caption(
     "This exports the entire current database state (users, credentials hashes, invitations, profiles, matches, results, and doubler data)."

@@ -56,6 +56,12 @@ class AppConfig:
     seed_admin_username: Optional[str]
     seed_admin_email: Optional[str]
     seed_admin_password: Optional[str]
+    backup_s3_endpoint: Optional[str]
+    backup_s3_bucket: Optional[str]
+    backup_s3_region: Optional[str]
+    backup_s3_access_key_id: Optional[str]
+    backup_s3_secret_access_key: Optional[str]
+    backup_s3_prefix: str
 
 
 def _normalize_app_env(value: Optional[str]) -> str:
@@ -102,6 +108,12 @@ def get_config() -> AppConfig:
     seed_admin_username = (_get_setting("SEED_ADMIN_USERNAME", None) or "").strip() or None
     seed_admin_email = (_get_setting("SEED_ADMIN_EMAIL", None) or "").strip().lower() or None
     seed_admin_password = (_get_setting("SEED_ADMIN_PASSWORD", None) or "").strip() or None
+    backup_s3_endpoint = (_get_setting("BACKUP_S3_ENDPOINT", None) or "").strip() or None
+    backup_s3_bucket = (_get_setting("BACKUP_S3_BUCKET", None) or "").strip() or None
+    backup_s3_region = (_get_setting("BACKUP_S3_REGION", None) or "").strip() or None
+    backup_s3_access_key_id = (_get_setting("BACKUP_S3_ACCESS_KEY_ID", None) or "").strip() or None
+    backup_s3_secret_access_key = (_get_setting("BACKUP_S3_SECRET_ACCESS_KEY", None) or "").strip() or None
+    backup_s3_prefix = (_get_setting("BACKUP_S3_PREFIX", "keeping-score") or "keeping-score").strip().strip("/")
     configured_app_base_url = _sanitize_app_base_url(_get_setting("APP_BASE_URL", None))
     app_base_url_is_fallback = not bool(configured_app_base_url)
     app_base_url = (configured_app_base_url or DEFAULT_PUBLIC_APP_BASE_URL).rstrip("/")
@@ -118,4 +130,10 @@ def get_config() -> AppConfig:
         seed_admin_username=seed_admin_username,
         seed_admin_email=seed_admin_email,
         seed_admin_password=seed_admin_password,
+        backup_s3_endpoint=backup_s3_endpoint,
+        backup_s3_bucket=backup_s3_bucket,
+        backup_s3_region=backup_s3_region,
+        backup_s3_access_key_id=backup_s3_access_key_id,
+        backup_s3_secret_access_key=backup_s3_secret_access_key,
+        backup_s3_prefix=backup_s3_prefix,
     )

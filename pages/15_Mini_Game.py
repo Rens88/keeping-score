@@ -52,8 +52,32 @@ SIMON_SEQUENCE_LENGTH = 20
 SIMON_SHOW_COLOR_SECONDS = 1.0
 SIMON_SHOW_GAP_SECONDS = 0.35
 SIMON_STEP_SECONDS = SIMON_SHOW_COLOR_SECONDS + SIMON_SHOW_GAP_SECONDS
-SIMON_COLOR_NAMES = ("Green", "Red", "Blue", "Yellow")
-SIMON_COLOR_EMOJIS = ("🟢", "🔴", "🔵", "🟡")
+SIMON_BASE_COLOR_COUNT = 4
+SIMON_ADD_COLOR_EVERY_ROUNDS = 4
+SIMON_MOVE_LAYOUT_EVERY_ROUNDS = 8
+SIMON_WORD_MODE_START_ROUND = 13
+SIMON_STROOP_MODE_START_ROUND = 17
+SIMON_COLOR_POOL = (
+    {"name": "Green", "ink": "#22c55e"},
+    {"name": "Red", "ink": "#ef4444"},
+    {"name": "Blue", "ink": "#3b82f6"},
+    {"name": "Yellow", "ink": "#facc15"},
+    {"name": "Purple", "ink": "#a855f7"},
+    {"name": "Orange", "ink": "#fb923c"},
+    {"name": "Pink", "ink": "#ec4899"},
+    {"name": "Teal", "ink": "#14b8a6"},
+)
+
+current_user_profile = services.repo.get_user_with_profile(user.id)
+current_player_name = str(
+    getattr(current_user_profile, "display_name", None)
+    or getattr(current_user_profile, "username", None)
+    or getattr(current_user_profile, "email", None)
+    or user.username
+    or user.email
+    or ""
+)
+SIMON_GAME_LABEL = "Siemen Says" if "siemen" in current_player_name.lower() else "Simon Says"
 
 
 def _status_label(state: str) -> str:
@@ -68,6 +92,16 @@ def _status_label(state: str) -> str:
 def _clear_state(*keys: str) -> None:
     for key in keys:
         st.session_state.pop(key, None)
+
+
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    clean = hex_color.lstrip("#")
+    if len(clean) != 6:
+        return f"rgba(255, 255, 255, {alpha})"
+    red = int(clean[0:2], 16)
+    green = int(clean[2:4], 16)
+    blue = int(clean[4:6], 16)
+    return f"rgba({red}, {green}, {blue}, {alpha})"
 
 
 def _render_leaderboard_table(game_slug: str) -> None:
@@ -282,15 +316,16 @@ def _render_whack_a_mole_tab() -> None:
 
 
 def _start_simon_says() -> None:
+    initial_color_count = min(SIMON_BASE_COLOR_COUNT, len(SIMON_COLOR_POOL))
     st.session_state[SIMON_GAME_STATE_KEY] = {
         "user_id": user.id,
         "started_at_epoch": time.time(),
         "started_at_iso": services.minigame_service.local_now().isoformat(),
-        "sequence": [random.randrange(len(SIMON_COLOR_NAMES)) for _ in range(SIMON_SEQUENCE_LENGTH)],
+        "sequence": [random.randrange(initial_color_count)],
         "round": 1,
         "input_index": 0,
         "phase": "show",
-        "phase_started_at_epoch": time.time(),
+        "layout_seed": random.randrange(10_000_000),
         "saved": False,
         "message": "Kijk goed naar de eerste reeks.",
     }
@@ -328,105 +363,163 @@ def _finish_simon_says_run(score: int, *, message: str) -> None:
     st.rerun()
 
 
-def _render_simon_pad(*, active_index: int | None, clickable: bool, button_prefix: str) -> None:
-    for row_start in range(0, len(SIMON_COLOR_NAMES), 2):
+def _simon_visible_color_ids(round_number: int) -> list[int]:
+    extra_colors = max(0, round_number - 1) // SIMON_ADD_COLOR_EVERY_ROUNDS
+    visible_count = min(SIMON_BASE_COLOR_COUNT + extra_colors, len(SIMON_COLOR_POOL))
+    return list(range(visible_count))
+
+
+def _simon_layout_for_round(round_number: int, *, layout_seed: int) -> list[int]:
+    layout = _simon_visible_color_ids(round_number)
+    layout_epoch = max(0, round_number - 1) // SIMON_MOVE_LAYOUT_EVERY_ROUNDS
+    if layout_epoch <= 0:
+        return layout
+
+    shuffled = layout[:]
+    random.Random(layout_seed + (layout_epoch * 977)).shuffle(shuffled)
+    return shuffled
+
+
+def _simon_display_name_for_color(actual_color_index: int, round_number: int) -> str:
+    visible_ids = _simon_visible_color_ids(round_number)
+    actual_name = str(SIMON_COLOR_POOL[actual_color_index]["name"])
+    if round_number < SIMON_STROOP_MODE_START_ROUND or len(visible_ids) <= 1:
+        return actual_name
+
+    shift = 1 + ((round_number - SIMON_STROOP_MODE_START_ROUND) % (len(visible_ids) - 1))
+    rotated = visible_ids[shift:] + visible_ids[:shift]
+    mapped_word_index = rotated[visible_ids.index(actual_color_index)]
+    return str(SIMON_COLOR_POOL[mapped_word_index]["name"])
+
+
+def _simon_round_intro_message(round_number: int) -> str:
+    if round_number >= SIMON_STROOP_MODE_START_ROUND:
+        return "STROOP level! Volg de kleur van de letters, niet het woord."
+    if round_number >= SIMON_WORD_MODE_START_ROUND:
+        return "Nieuwe twist: de knoppen tonen nu kleurwoorden in de juiste kleur."
+    if round_number > 1 and (round_number - 1) % SIMON_MOVE_LAYOUT_EVERY_ROUNDS == 0:
+        return "Nieuwe twist: de kleuren zijn van plek gewisseld."
+    if round_number > 1 and (round_number - 1) % SIMON_ADD_COLOR_EVERY_ROUNDS == 0:
+        return "Nieuwe twist: er is een extra kleur toegevoegd."
+    return "Goed gedaan. Nieuwe reeks komt eraan."
+
+
+def _append_simon_color_for_round(state: dict[str, object], round_number: int) -> None:
+    sequence = [int(item) for item in state.get("sequence", [])]
+    if len(sequence) >= SIMON_SEQUENCE_LENGTH:
+        state["sequence"] = sequence
+        return
+    visible_ids = _simon_visible_color_ids(round_number)
+    if not visible_ids:
+        visible_ids = [0]
+    sequence.append(random.choice(visible_ids))
+    state["sequence"] = sequence
+
+
+def _render_simon_tile(
+    *,
+    actual_color_index: int,
+    round_number: int,
+    active: bool,
+) -> str:
+    color_name = str(SIMON_COLOR_POOL[actual_color_index]["name"])
+    ink = str(SIMON_COLOR_POOL[actual_color_index]["ink"])
+    display_name = _simon_display_name_for_color(actual_color_index, round_number)
+    color_surface = _hex_to_rgba(ink, 0.18 if active else 0.10)
+    border_color = _hex_to_rgba(ink, 0.95 if active else 0.55)
+    shadow = (
+        f"box-shadow: 0 0 0 2px {_hex_to_rgba(ink, 0.28)}, 0 20px 40px rgba(0, 0, 0, 0.18);"
+        if active
+        else "box-shadow: 0 12px 24px rgba(0, 0, 0, 0.10);"
+    )
+    helper = color_name if round_number < SIMON_WORD_MODE_START_ROUND else "Follow the ink"
+    return f"""
+        <div style="
+            min-height: 106px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.9rem 0.8rem;
+            border-radius: 18px;
+            border: 1px solid {border_color};
+            background: linear-gradient(180deg, {color_surface} 0%, rgba(24, 19, 15, 0.94) 100%);
+            text-align: center;
+            transition: all 160ms ease;
+            {shadow}
+        ">
+            <div style="
+                color: {ink};
+                font-size: 1.18rem;
+                font-weight: 900;
+                letter-spacing: 0.02em;
+                line-height: 1.05;
+            ">
+                {display_name}
+            </div>
+            <div style="
+                color: rgba(247, 239, 229, 0.72);
+                font-size: 0.74rem;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            ">
+                {helper}
+            </div>
+        </div>
+    """
+
+
+def _render_simon_pad(
+    *,
+    round_number: int,
+    layout_seed: int,
+    active_index: int | None,
+    clickable: bool,
+    button_prefix: str,
+) -> int | None:
+    clicked_color_index: int | None = None
+    layout = _simon_layout_for_round(round_number, layout_seed=layout_seed)
+
+    for row_start in range(0, len(layout), 2):
         cols = st.columns(2)
         for col_offset, column in enumerate(cols):
-            color_index = row_start + col_offset
-            if color_index >= len(SIMON_COLOR_NAMES):
+            layout_position = row_start + col_offset
+            if layout_position >= len(layout):
                 continue
+            color_index = layout[layout_position]
             is_active = active_index == color_index
-            label = f"{SIMON_COLOR_EMOJIS[color_index]} {SIMON_COLOR_NAMES[color_index]}"
+            display_name = _simon_display_name_for_color(color_index, round_number)
             if not clickable:
-                active_style = (
-                    "background: rgba(255, 122, 26, 0.22); "
-                    "border-color: rgba(255, 122, 26, 0.95); "
-                    "box-shadow: 0 0 0 2px rgba(255, 122, 26, 0.25); "
-                    "transform: scale(1.02);"
-                    if is_active
-                    else
-                    "background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.12);"
-                )
                 column.markdown(
-                    f"""
-                    <div style="
-                        border: 1px solid;
-                        border-radius: 16px;
-                        color: #f7efe5;
-                        font-size: 1.05rem;
-                        font-weight: 800;
-                        min-height: 86px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        text-align: center;
-                        padding: 0.9rem;
-                        transition: all 120ms ease;
-                        {active_style}
-                    ">
-                        {label}
-                    </div>
-                    """,
+                    _render_simon_tile(
+                        actual_color_index=color_index,
+                        round_number=round_number,
+                        active=is_active,
+                    ),
                     unsafe_allow_html=True,
                 )
                 continue
 
-            button_type = "primary" if is_active else "secondary"
+            column.markdown(
+                _render_simon_tile(
+                    actual_color_index=color_index,
+                    round_number=round_number,
+                    active=is_active,
+                ),
+                unsafe_allow_html=True,
+            )
             if column.button(
-                label,
+                display_name,
                 width="stretch",
-                type=button_type,
                 key=f"{button_prefix}_{color_index}",
             ):
-                state = st.session_state.get(SIMON_GAME_STATE_KEY)
-                if not isinstance(state, dict) or state.get("phase") != "input":
-                    st.rerun()
+                clicked_color_index = color_index
 
-                sequence = [int(item) for item in state.get("sequence", [])]
-                input_index = int(state.get("input_index", 0))
-                current_round = int(state.get("round", 1))
-                expected_color = sequence[input_index]
-                if color_index != expected_color:
-                    _finish_simon_says_run(
-                        max(0, current_round - 1),
-                        message="Net mis. Je score is opgeslagen.",
-                    )
-                    return
-
-                if input_index + 1 >= current_round:
-                    if current_round >= len(sequence):
-                        _finish_simon_says_run(
-                            current_round,
-                            message="Perfect gespeeld. Je hebt de volledige reeks gehaald.",
-                        )
-                        return
-                    state["round"] = current_round + 1
-                    state["input_index"] = 0
-                    state["phase"] = "show"
-                    state["phase_started_at_epoch"] = time.time()
-                    state["message"] = "Goed gedaan. Nieuwe reeks komt eraan."
-                    st.session_state[SIMON_GAME_STATE_KEY] = state
-                    st.rerun()
-
-                state["input_index"] = input_index + 1
-                state["message"] = "Goed. Ga door met de reeks."
-                st.session_state[SIMON_GAME_STATE_KEY] = state
-                st.rerun()
+    return clicked_color_index
 
 
-def _render_simon_reveal_header(*, active_color: int | None, current_step: int, total_steps: int) -> None:
-    if active_color is None:
-        st.info("Volgende kleur komt eraan...")
-        return
-
-    st.success(
-        "Simon laat zien: "
-        f"{SIMON_COLOR_EMOJIS[active_color]} {SIMON_COLOR_NAMES[active_color]} "
-        f"(stap {current_step} van {total_steps})"
-    )
-
-
-@st.fragment(run_every=0.2)
 def _render_live_simon_says() -> None:
     state = st.session_state.get(SIMON_GAME_STATE_KEY)
     if not isinstance(state, dict):
@@ -435,60 +528,132 @@ def _render_live_simon_says() -> None:
     sequence = [int(item) for item in state.get("sequence", [])]
     current_round = int(state.get("round", 1))
     phase = str(state.get("phase", "show"))
-    phase_started_at = float(state.get("phase_started_at_epoch", time.time()))
+    layout_seed = int(state.get("layout_seed", 0))
     message = str(state.get("message", ""))
     rounds_completed = max(0, current_round - 1)
 
     st.write(f"Score: **{rounds_completed}**")
-    st.caption(f"Ronde {current_round} van {len(sequence)}")
+    st.caption(f"Ronde {current_round} van {SIMON_SEQUENCE_LENGTH}")
     if message:
         st.caption(message)
+    if current_round >= SIMON_STROOP_MODE_START_ROUND:
+        st.warning("STROOP level: volg de kleur van de letters, niet het woord.")
+    elif current_round >= SIMON_WORD_MODE_START_ROUND:
+        st.info("De kleuren worden nu als woorden getoond.")
 
     if phase == "show":
-        elapsed = max(0.0, time.time() - phase_started_at)
-        active_position = int(elapsed // SIMON_STEP_SECONDS)
-        if active_position >= current_round:
-            state["phase"] = "input"
-            state["input_index"] = 0
-            state["phase_started_at_epoch"] = time.time()
-            state["message"] = "Jij bent. Klik de reeks na."
-            st.session_state[SIMON_GAME_STATE_KEY] = state
-            st.rerun()
+        total_duration = max(SIMON_STEP_SECONDS * current_round, 0.01)
+        progress_placeholder = st.empty()
+        status_placeholder = st.empty()
+        pad_placeholder = st.empty()
+        for active_position, active_color in enumerate(sequence[:current_round], start=1):
+            elapsed_before = max(0.0, (active_position - 1) * SIMON_STEP_SECONDS)
+            progress_placeholder.progress(
+                min(1.0, elapsed_before / total_duration),
+                text=f"Stap {active_position} van {current_round}",
+            )
+            status_placeholder.success(
+                f"{SIMON_GAME_LABEL} laat zien: "
+                f"{SIMON_COLOR_POOL[active_color]['name']} "
+                f"(stap {active_position} van {current_round})"
+            )
+            with pad_placeholder.container():
+                _render_simon_pad(
+                    round_number=current_round,
+                    layout_seed=layout_seed,
+                    active_index=active_color,
+                    clickable=False,
+                    button_prefix="simon_show_static",
+                )
+            time.sleep(SIMON_SHOW_COLOR_SECONDS)
+            if active_position < current_round:
+                progress_placeholder.progress(
+                    min(1.0, ((active_position * SIMON_STEP_SECONDS) / total_duration)),
+                    text=f"Stap {active_position} van {current_round}",
+                )
+                status_placeholder.info("Volgende kleur komt eraan...")
+                with pad_placeholder.container():
+                    _render_simon_pad(
+                        round_number=current_round,
+                        layout_seed=layout_seed,
+                        active_index=None,
+                        clickable=False,
+                        button_prefix="simon_show_static",
+                    )
+                time.sleep(SIMON_SHOW_GAP_SECONDS)
 
-        elapsed_within_step = elapsed - (active_position * SIMON_STEP_SECONDS)
-        active_color = sequence[active_position] if elapsed_within_step < SIMON_SHOW_COLOR_SECONDS else None
-        st.progress(min(1.0, elapsed / max(SIMON_STEP_SECONDS * current_round, 0.01)))
-        st.caption("Simon zegt...")
-        _render_simon_reveal_header(
-            active_color=active_color,
-            current_step=min(active_position + 1, current_round),
-            total_steps=current_round,
-        )
-        _render_simon_pad(active_index=active_color, clickable=False, button_prefix=f"simon_show_{current_round}")
+        state["phase"] = "input"
+        state["input_index"] = 0
+        state["message"] = "Jij bent. Klik de reeks na."
+        st.session_state[SIMON_GAME_STATE_KEY] = state
+        st.rerun()
         return
 
     input_index = int(state.get("input_index", 0))
     st.progress(input_index / max(current_round, 1), text=f"Stap {input_index + 1} van {current_round}")
-    _render_simon_pad(active_index=None, clickable=True, button_prefix=f"simon_input_{current_round}_{input_index}")
+    clicked_color = _render_simon_pad(
+        round_number=current_round,
+        layout_seed=layout_seed,
+        active_index=None,
+        clickable=True,
+        button_prefix="simon_input",
+    )
+    if clicked_color is None:
+        return
+
+    latest_state = st.session_state.get(SIMON_GAME_STATE_KEY)
+    if not isinstance(latest_state, dict) or latest_state.get("phase") != "input":
+        st.rerun()
+
+    sequence = [int(item) for item in latest_state.get("sequence", [])]
+    current_round = int(latest_state.get("round", 1))
+    input_index = int(latest_state.get("input_index", 0))
+    expected_color = sequence[input_index]
+    if clicked_color != expected_color:
+        _finish_simon_says_run(
+            max(0, current_round - 1),
+            message="Net mis. Je score is opgeslagen.",
+        )
+        return
+
+    if input_index + 1 >= current_round:
+        if current_round >= SIMON_SEQUENCE_LENGTH:
+            _finish_simon_says_run(
+                current_round,
+                message="Perfect gespeeld. Je hebt de volledige reeks gehaald.",
+            )
+            return
+        latest_state["round"] = current_round + 1
+        latest_state["input_index"] = 0
+        latest_state["phase"] = "show"
+        latest_state["message"] = _simon_round_intro_message(current_round + 1)
+        _append_simon_color_for_round(latest_state, current_round + 1)
+        st.session_state[SIMON_GAME_STATE_KEY] = latest_state
+        st.rerun()
+
+    latest_state["input_index"] = input_index + 1
+    latest_state["message"] = "Goed. Ga door met de reeks."
+    st.session_state[SIMON_GAME_STATE_KEY] = latest_state
+    st.rerun()
 
 
 def _render_simon_says_tab() -> None:
-    game_status, _player_summary = _render_game_status_box(SIMON_SAYS_SLUG, "Simon Says")
+    game_status, _player_summary = _render_game_status_box(SIMON_SAYS_SLUG, SIMON_GAME_LABEL)
     game_state = st.session_state.get(SIMON_GAME_STATE_KEY)
     if isinstance(game_state, dict) and game_state.get("user_id") != user.id:
         _clear_state(SIMON_GAME_STATE_KEY, SIMON_LAST_RESULT_KEY)
         game_state = None
 
     with st.container(border=True):
-        st.subheader("Simon Says")
+        st.subheader(SIMON_GAME_LABEL)
         st.write(
             "Kijk naar de kleurreeks, onthoud hem en klik hem foutloos na. "
             "Je score is het aantal volledig voltooide rondes."
         )
         if game_status.state == "live" and not isinstance(game_state, dict):
-            if st.button("Start Simon Says", width="stretch", type="primary"):
+            if st.button(f"Start {SIMON_GAME_LABEL}", width="stretch", type="primary"):
                 _start_simon_says()
-                st.rerun()
+                game_state = st.session_state.get(SIMON_GAME_STATE_KEY)
 
     if isinstance(game_state, dict):
         with st.container(border=True):
@@ -503,11 +668,11 @@ def _render_simon_says_tab() -> None:
                 st.error(str(last_result["error"]))
             else:
                 st.success(
-                    f"Je Simon Says score is **{int(last_result['score'])}**. {str(last_result['message'])}"
+                    f"Je {SIMON_GAME_LABEL} score is **{int(last_result['score'])}**. {str(last_result['message'])}"
                 )
             if game_status.state == "live" and st.button("Nog een keer spelen", width="stretch", key="simon_retry"):
                 _start_simon_says()
-                st.rerun()
+                game_state = st.session_state.get(SIMON_GAME_STATE_KEY)
 
     with st.container(border=True):
         st.subheader("Stand")
@@ -517,10 +682,12 @@ def _render_simon_says_tab() -> None:
         st.subheader("Hoe werkt het?")
         st.write("- Elke volledig gehaalde ronde telt als 1 punt.")
         st.write("- Zodra je een fout maakt, wordt je run opgeslagen.")
+        st.write("- Om de 4 rondes komt er een kleur bij en om de 8 rondes wisselen de kleuren van plek.")
+        st.write("- Vanaf ronde 13 zie je kleurwoorden, en vanaf ronde 17 begint het STROOP level.")
         st.write("- De admin kent weekendpunten toe zodra de deadline is verstreken.")
 
 
-whack_tab, simon_tab = st.tabs(["Whack-a-mole", "Simon Says"])
+whack_tab, simon_tab = st.tabs(["Whack-a-mole", SIMON_GAME_LABEL])
 
 with whack_tab:
     _render_whack_a_mole_tab()

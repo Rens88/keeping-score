@@ -61,6 +61,7 @@ with st.container(border=True):
         [
             ("Off-site backup", backup_status.status_label),
             ("Last successful backup", backup_status.last_success_at or "Never"),
+            ("Last auto-restore", backup_status.last_restore_at or "Never"),
             ("Backup target", backup_status.bucket or "Not configured"),
         ]
     )
@@ -69,6 +70,8 @@ with st.container(border=True):
         st.caption(f"Endpoint: {backup_status.endpoint}")
     if backup_status.last_object_key:
         st.caption(f"Latest uploaded object: {backup_status.last_object_key}")
+    if backup_status.last_restore_object_key:
+        st.caption(f"Latest restored object: {backup_status.last_restore_object_key}")
     if backup_status.last_error_message:
         st.warning(
             "Latest backup error"

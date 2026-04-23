@@ -385,3 +385,7 @@ Requested Changes (summarized)
 - Add optional S3-compatible off-site backup configuration through env/Streamlit secrets so the app can upload fresh SQLite snapshots outside Streamlit Cloud after real tournament-data writes.
 - Surface backup health on the admin dashboard and the Backup & Restore page, including the last successful upload, latest object key, and latest error.
 - Add an admin-facing Streamlit Cloud secrets template and a Backblaze-specific checklist so the bucket endpoint, app key ID, and app key can be pasted in without putting credentials in the repo.
+
+74. Startup auto-restore from off-site backups:
+- When the local SQLite database is missing, empty, corrupt, or otherwise lacks tables on startup, attempt to restore the newest off-site backup automatically before normal migrations boot the app.
+- Keep this restore path safe by leaving healthy local databases alone, exposing the last auto-restore in the admin backup status, and allowing the behavior to be toggled with `BACKUP_AUTO_RESTORE_ON_STARTUP`.

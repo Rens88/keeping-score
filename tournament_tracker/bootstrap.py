@@ -77,6 +77,7 @@ def _backup_service_has_expected_capabilities(service: object) -> bool:
             "get_offsite_backup_status",
             "run_offsite_backup_now",
             "get_streamlit_secrets_template",
+            "restore_latest_offsite_snapshot_if_needed",
         )
     )
 
@@ -88,6 +89,7 @@ def _services_have_expected_capabilities(services: object) -> bool:
     special_service = getattr(services, "special_service", None)
     return bool(
         hasattr(getattr(services, "config", object()), "persistent_login_days")
+        and hasattr(getattr(services, "config", object()), "backup_auto_restore_on_startup")
         and hasattr(services, "minigame_service")
         and special_service is not None
         and backup_service is not None
@@ -106,6 +108,10 @@ def _services_have_expected_capabilities(services: object) -> bool:
 def initialize_repository(config: AppConfig | None = None) -> tuple[AppConfig, SQLiteRepository]:
     cfg = config or get_config()
     repo = SQLiteRepository(cfg.db_path)
+    restore_service = BackupService(repo, cfg, register_after_write_hook=False)
+    restore_result = restore_service.restore_latest_offsite_snapshot_if_needed()
+    if restore_result.blocking_failure:
+        raise RuntimeError(restore_result.message)
     repo.apply_migrations()
     auth_service = AuthService(repo, persistent_login_days=cfg.persistent_login_days)
 
@@ -174,6 +180,8 @@ def get_services() -> AppServices:
 
 def _rebuild_services_from_existing(services: object) -> AppServices:
     config = getattr(services, "config")
+    if not hasattr(config, "backup_auto_restore_on_startup"):
+        config = get_config()
     repo = getattr(services, "repo")
     persistent_login_days = getattr(config, "persistent_login_days", 30)
     existing_backup_service = getattr(services, "backup_service", None)

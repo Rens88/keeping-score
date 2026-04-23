@@ -62,6 +62,7 @@ class AppConfig:
     backup_s3_access_key_id: Optional[str]
     backup_s3_secret_access_key: Optional[str]
     backup_s3_prefix: str
+    backup_auto_restore_on_startup: bool
 
 
 def _normalize_app_env(value: Optional[str]) -> str:
@@ -82,6 +83,17 @@ def _safe_int(value: Optional[str], fallback: int) -> int:
         return int(value or str(fallback))
     except Exception:
         return fallback
+
+
+def _safe_bool(value: Optional[str], fallback: bool) -> bool:
+    if value is None:
+        return fallback
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return fallback
 
 
 def _sanitize_app_base_url(value: Optional[str]) -> str:
@@ -114,6 +126,10 @@ def get_config() -> AppConfig:
     backup_s3_access_key_id = (_get_setting("BACKUP_S3_ACCESS_KEY_ID", None) or "").strip() or None
     backup_s3_secret_access_key = (_get_setting("BACKUP_S3_SECRET_ACCESS_KEY", None) or "").strip() or None
     backup_s3_prefix = (_get_setting("BACKUP_S3_PREFIX", "keeping-score") or "keeping-score").strip().strip("/")
+    backup_auto_restore_on_startup = _safe_bool(
+        _get_setting("BACKUP_AUTO_RESTORE_ON_STARTUP", "true"),
+        True,
+    )
     configured_app_base_url = _sanitize_app_base_url(_get_setting("APP_BASE_URL", None))
     app_base_url_is_fallback = not bool(configured_app_base_url)
     app_base_url = (configured_app_base_url or DEFAULT_PUBLIC_APP_BASE_URL).rstrip("/")
@@ -136,4 +152,5 @@ def get_config() -> AppConfig:
         backup_s3_access_key_id=backup_s3_access_key_id,
         backup_s3_secret_access_key=backup_s3_secret_access_key,
         backup_s3_prefix=backup_s3_prefix,
+        backup_auto_restore_on_startup=backup_auto_restore_on_startup,
     )

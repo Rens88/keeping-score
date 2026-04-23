@@ -33,6 +33,9 @@ with st.container(border=True):
     st.write(f"Last successful backup: {offsite_status.last_success_at or 'Never'}")
     if offsite_status.last_object_key:
         st.caption(f"Latest object key: `{offsite_status.last_object_key}`")
+    st.write(f"Last automatic restore: {offsite_status.last_restore_at or 'Never'}")
+    if offsite_status.last_restore_object_key:
+        st.caption(f"Latest restored object: `{offsite_status.last_restore_object_key}`")
     if offsite_status.last_error_message:
         st.error(
             "Latest backup error"
@@ -60,7 +63,8 @@ with st.expander("Streamlit Cloud secrets template", expanded=not offsite_status
         "2. Open **Application Keys** and create a new key for that bucket.\n"
         "3. Use a key with upload permission for that bucket. If Backblaze shows simple presets, `Read and Write` is the safest choice.\n"
         "4. Copy the **S3 Endpoint**, **keyID**, and **applicationKey** from Backblaze.\n"
-        "5. Paste them into Streamlit Cloud secrets using the template above."
+        "5. Paste them into Streamlit Cloud secrets using the template above.\n"
+        "6. Leave `BACKUP_AUTO_RESTORE_ON_STARTUP` on `true` if you want the app to automatically recover after a cloud wipe/reboot."
     )
 
 st.divider()

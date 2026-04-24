@@ -140,6 +140,8 @@ def _ranked_event_competitor_label(row: dict[str, object]) -> str:
 
 CREATE_MATCH_ORDER_KEY = "create_match_scheduled_order"
 CREATE_EVENT_ORDER_KEY = "create_ranked_event_scheduled_order"
+CREATE_ORDER_REFRESH_KEY = "schedule_create_order_refresh_requested"
+SCHEDULE_FLASH_MESSAGE_KEY = "schedule_flash_message"
 
 
 def _next_scheduled_order_default() -> int:
@@ -157,13 +159,30 @@ def _next_scheduled_order_default() -> int:
 
 
 def _refresh_create_order_defaults() -> None:
+    should_refresh = (
+        CREATE_MATCH_ORDER_KEY not in st.session_state
+        or CREATE_EVENT_ORDER_KEY not in st.session_state
+        or bool(st.session_state.pop(CREATE_ORDER_REFRESH_KEY, False))
+    )
+    if not should_refresh:
+        return
+
     next_order = _next_scheduled_order_default()
     st.session_state[CREATE_MATCH_ORDER_KEY] = next_order
     st.session_state[CREATE_EVENT_ORDER_KEY] = next_order
 
 
-if CREATE_MATCH_ORDER_KEY not in st.session_state or CREATE_EVENT_ORDER_KEY not in st.session_state:
-    _refresh_create_order_defaults()
+def _queue_create_order_refresh(success_message: str) -> None:
+    # Refresh widget-backed defaults on the next rerun, before Streamlit recreates the inputs.
+    st.session_state[CREATE_ORDER_REFRESH_KEY] = True
+    st.session_state[SCHEDULE_FLASH_MESSAGE_KEY] = success_message
+
+
+_refresh_create_order_defaults()
+
+flash_message = st.session_state.pop(SCHEDULE_FLASH_MESSAGE_KEY, None)
+if isinstance(flash_message, str) and flash_message:
+    st.success(flash_message)
 
 
 st.caption("Choose the competition type first. Then use the second row to create, edit, enter results, or delete.")
@@ -231,8 +250,8 @@ with head_to_head_tab:
                     side2_participant_ids=[participant_label_to_id[label] for label in side2_labels],
                 )
                 _store_betting_chat_preview(created_match.id)
-                _refresh_create_order_defaults()
-                st.success(f"Match #{created_match.id} created.")
+                _queue_create_order_refresh(f"Match #{created_match.id} created.")
+                st.rerun()
             except ValidationError as exc:
                 st.error(str(exc))
 
@@ -253,6 +272,7 @@ with head_to_head_tab:
             )
             selected_match_id = label_to_match_id[selected_label]
             selected_card = next(card for card in cards if card.match_id == selected_match_id)
+            edit_match_key_prefix = f"edit_match_{selected_match_id}"
 
             existing_dt = _parse_iso_to_datetime(selected_card.scheduled_at)
 
@@ -263,7 +283,7 @@ with head_to_head_tab:
                 p.user_id for p in selected_card.sides[2]["participants"] if hasattr(p, "user_id")
             ]
 
-            with st.form("edit_match_form"):
+            with st.form(f"edit_match_form_{selected_match_id}"):
                 render_form_field_label("Game type")
                 game_type_choice = st.selectbox(
                     "Game type",
@@ -271,14 +291,14 @@ with head_to_head_tab:
                     index=(DEFAULT_GAME_TYPES.index(selected_card.game_type)
                            if selected_card.game_type in DEFAULT_GAME_TYPES
                            else len(DEFAULT_GAME_TYPES)),
-                    key="edit_game_type_choice",
+                    key=f"{edit_match_key_prefix}_game_type_choice",
                     label_visibility="collapsed",
                 )
                 render_form_field_label("Custom game type")
                 custom_game_type = st.text_input(
                     "Custom game type",
                     value=selected_card.game_type if selected_card.game_type not in DEFAULT_GAME_TYPES else "",
-                    key="edit_custom_game_type",
+                    key=f"{edit_match_key_prefix}_custom_game_type",
                     label_visibility="collapsed",
                 )
                 render_form_field_label("Status")
@@ -286,7 +306,7 @@ with head_to_head_tab:
                     "Status",
                     ["upcoming", "live", "completed"],
                     index=["upcoming", "live", "completed"].index(selected_card.status),
-                    key="edit_status",
+                    key=f"{edit_match_key_prefix}_status",
                     label_visibility="collapsed",
                 )
                 render_form_field_label("Scheduled order")
@@ -295,11 +315,11 @@ with head_to_head_tab:
                     min_value=1,
                     value=int(selected_card.scheduled_order or 1),
                     step=1,
-                    key="edit_order",
+                    key=f"{edit_match_key_prefix}_order",
                     label_visibility="collapsed",
                 )
                 schedule_dt = _render_schedule_inputs(
-                    mode_key="edit",
+                    mode_key=edit_match_key_prefix,
                     existing_dt=existing_dt,
                     default_with_time=existing_dt is not None,
                 )
@@ -308,14 +328,14 @@ with head_to_head_tab:
                 side1_name = st.text_input(
                     "Side 1 name",
                     value=str(selected_card.sides[1]["side_name"] or ""),
-                    key="edit_side1_name",
+                    key=f"{edit_match_key_prefix}_side1_name",
                     label_visibility="collapsed",
                 )
                 render_form_field_label("Side 2 name")
                 side2_name = st.text_input(
                     "Side 2 name",
                     value=str(selected_card.sides[2]["side_name"] or ""),
-                    key="edit_side2_name",
+                    key=f"{edit_match_key_prefix}_side2_name",
                     label_visibility="collapsed",
                 )
 
@@ -328,7 +348,7 @@ with head_to_head_tab:
                     "Side 1 participants",
                     options=all_labels,
                     default=side1_defaults,
-                    key="edit_side1_players",
+                    key=f"{edit_match_key_prefix}_side1_players",
                     label_visibility="collapsed",
                 )
                 render_form_field_label("Side 2 participants")
@@ -336,7 +356,7 @@ with head_to_head_tab:
                     "Side 2 participants",
                     options=all_labels,
                     default=side2_defaults,
-                    key="edit_side2_players",
+                    key=f"{edit_match_key_prefix}_side2_players",
                     label_visibility="collapsed",
                 )
 
@@ -497,8 +517,8 @@ with head_to_head_tab:
             if st.button("Delete selected match", type="secondary", width="stretch", disabled=not confirm_delete):
                 try:
                     services.match_service.delete_match(selected_match_id)
-                    _refresh_create_order_defaults()
-                    st.success(f"Match #{selected_match_id} deleted.")
+                    _queue_create_order_refresh(f"Match #{selected_match_id} deleted.")
+                    st.rerun()
                 except NotFoundError as exc:
                     st.error(str(exc))
 
@@ -577,8 +597,8 @@ with multi_competitor_tab:
                     competitor_user_ids=[participant_label_to_id[label] for label in competitor_labels],
                     created_by_user_id=admin_user.id,
                 )
-                _refresh_create_order_defaults()
-                st.success(f"Multi-competitor game #{created_event.id} created.")
+                _queue_create_order_refresh(f"Multi-competitor game #{created_event.id} created.")
+                st.rerun()
             except ValidationError as exc:
                 st.error(str(exc))
 
@@ -596,15 +616,16 @@ with multi_competitor_tab:
             )
             selected_event_id = event_option_map[selected_event_label]
             selected_event = next(event for event in ranked_events if event.id == selected_event_id)
+            edit_event_key_prefix = f"edit_ranked_event_{selected_event_id}"
             selected_event_dt = _parse_iso_to_datetime(selected_event.scheduled_at)
             selected_competitor_labels = competitor_labels_by_event.get(selected_event_id, [])
 
-            with st.form("edit_ranked_event_form"):
+            with st.form(f"edit_ranked_event_form_{selected_event_id}"):
                 render_form_field_label("Game type")
                 event_title = st.text_input(
                     "Game type",
                     value=selected_event.title,
-                    key="edit_ranked_event_title",
+                    key=f"{edit_event_key_prefix}_title",
                     label_visibility="collapsed",
                 )
                 render_form_field_label("Status")
@@ -612,7 +633,7 @@ with multi_competitor_tab:
                     "Status",
                     ["upcoming", "live", "completed"],
                     index=["upcoming", "live", "completed"].index(selected_event.status),
-                    key="edit_ranked_event_status",
+                    key=f"{edit_event_key_prefix}_status",
                     label_visibility="collapsed",
                 )
                 render_form_field_label("Scheduled order")
@@ -621,11 +642,11 @@ with multi_competitor_tab:
                     min_value=1,
                     value=int(selected_event.scheduled_order or 1),
                     step=1,
-                    key="edit_ranked_event_order",
+                    key=f"{edit_event_key_prefix}_order",
                     label_visibility="collapsed",
                 )
                 event_schedule_dt = _render_schedule_inputs(
-                    mode_key="ranked_edit",
+                    mode_key=edit_event_key_prefix,
                     existing_dt=selected_event_dt,
                     default_with_time=selected_event_dt is not None,
                 )
@@ -636,7 +657,7 @@ with multi_competitor_tab:
                 award_scheme_input = st.text_input(
                     "Award scheme",
                     value=selected_event.award_scheme,
-                    key="edit_ranked_event_awards",
+                    key=f"{edit_event_key_prefix}_awards",
                     label_visibility="collapsed",
                 )
                 render_form_field_label("Competitors")
@@ -644,7 +665,7 @@ with multi_competitor_tab:
                     "Competitors",
                     options=list(participant_label_to_id.keys()),
                     default=selected_competitor_labels,
-                    key="edit_ranked_event_competitors",
+                    key=f"{edit_event_key_prefix}_competitors",
                     label_visibility="collapsed",
                 )
                 update_ranked_event_submit = st.form_submit_button("Save game changes", width="stretch")
@@ -783,8 +804,8 @@ with multi_competitor_tab:
             ):
                 try:
                     services.ranked_event_service.delete_event(selected_event_id)
-                    _refresh_create_order_defaults()
-                    st.success(f"Multi-competitor game #{selected_event_id} deleted.")
+                    _queue_create_order_refresh(f"Multi-competitor game #{selected_event_id} deleted.")
+                    st.rerun()
                 except NotFoundError as exc:
                     st.error(str(exc))
 

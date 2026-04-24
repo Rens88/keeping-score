@@ -417,3 +417,8 @@ Requested Changes (summarized)
 - Keep the Simon Says play area stable between reveal and input by always showing a fixed display slot above the button pad instead of removing the pattern-display section when the player's turn starts.
 - Style the Simon play area as a white surface, shrink the buttons to fit their content with a comfortable minimum clickable size, and keep the button positions centered and consistent within each round.
 - Update button presentation by phase: rounds 1-12 use colored buttons without words, rounds 13-16 use light-grey buttons with black color names, and round 17 onward keeps the light-grey buttons while showing random color words in the actual button-color font for STROOP play.
+
+81. Simon Says input-button styling hook fix:
+- Fix the Simon Says clickable input buttons so the CSS actually reaches the real Streamlit button elements during the guess phase.
+- Make the clickable buttons inherit the same color/background treatment as the demonstrated tiles instead of falling back to the default dark button style.
+- Fix the white play-area shell hook to target the correct Streamlit wrapper as well.

@@ -644,13 +644,12 @@ def _render_simon_button_style(
 ) -> str:
     theme = _simon_button_theme(actual_color_index, round_number, active=active)
     return f"""
-        <div id="{marker_id}"></div>
         <style>
-        #{marker_id} + div[data-testid="stButton"] {{
+        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] {{
             display: flex;
             justify-content: center;
         }}
-        #{marker_id} + div[data-testid="stButton"] > button {{
+        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] > button {{
             width: auto;
             min-width: 96px;
             min-height: 76px;
@@ -661,16 +660,16 @@ def _render_simon_button_style(
             box-shadow: {theme["box_shadow"]};
             transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
         }}
-        #{marker_id} + div[data-testid="stButton"] > button:hover {{
+        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] > button:hover {{
             border-color: {theme["border_color"]};
             box-shadow: 0 0 0 2px {theme["glow"]}, 0 16px 28px rgba(15, 23, 42, 0.12);
             transform: translateY(-1px);
         }}
-        #{marker_id} + div[data-testid="stButton"] > button:disabled {{
+        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] > button:disabled {{
             opacity: 1;
             cursor: default;
         }}
-        #{marker_id} + div[data-testid="stButton"] > button p {{
+        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] > button p {{
             color: {theme["text_color"]};
             font-size: 1.02rem;
             font-weight: 900;
@@ -679,15 +678,15 @@ def _render_simon_button_style(
             text-shadow: {theme["text_shadow"]};
         }}
         </style>
+        <div id="{marker_id}"></div>
     """
 
 
 def _render_simon_play_area_shell(*, shell_id: str) -> None:
     st.markdown(
         f"""
-        <div id="{shell_id}"></div>
         <style>
-        #{shell_id} + div[data-testid="stVerticalBlock"] {{
+        div[data-testid="stElementContainer"]:has(#{shell_id}) + div[data-testid="stVerticalBlock"] {{
             background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 1) 100%);
             border: 1px solid rgba(148, 163, 184, 0.42);
             border-radius: 24px;
@@ -695,6 +694,7 @@ def _render_simon_play_area_shell(*, shell_id: str) -> None:
             box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
         }}
         </style>
+        <div id="{shell_id}"></div>
         """,
         unsafe_allow_html=True,
     )

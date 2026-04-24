@@ -637,64 +637,82 @@ def _render_simon_tile(
 
 def _render_simon_button_style(
     *,
-    marker_id: str,
+    container_key: str,
     actual_color_index: int,
     round_number: int,
     active: bool = False,
 ) -> str:
     theme = _simon_button_theme(actual_color_index, round_number, active=active)
+    selector = f".st-key-{container_key}"
     return f"""
         <style>
-        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] {{
+        {selector} .stButton {{
             display: flex;
             justify-content: center;
         }}
-        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] > button {{
-            width: auto;
-            min-width: 96px;
-            min-height: 76px;
-            padding: 0.55rem 0.95rem;
-            border-radius: 18px;
-            border: 1px solid {theme["border_color"]};
-            background: {theme["surface"]};
-            box-shadow: {theme["box_shadow"]};
-            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+        {selector} .stButton > button {{
+            width: auto !important;
+            min-width: 96px !important;
+            min-height: 76px !important;
+            padding: 0.55rem 0.95rem !important;
+            border-radius: 18px !important;
+            border: 1px solid {theme["border_color"]} !important;
+            background: {theme["surface"]} !important;
+            background-image: none !important;
+            box-shadow: {theme["box_shadow"]} !important;
+            color: {theme["text_color"]} !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease !important;
         }}
-        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] > button:hover {{
-            border-color: {theme["border_color"]};
-            box-shadow: 0 0 0 2px {theme["glow"]}, 0 16px 28px rgba(15, 23, 42, 0.12);
+        {selector} .stButton > button:hover,
+        {selector} .stButton > button:focus,
+        {selector} .stButton > button:focus-visible {{
+            background: {theme["surface"]} !important;
+            color: {theme["text_color"]} !important;
+            border-color: {theme["border_color"]} !important;
+            box-shadow: 0 0 0 2px {theme["glow"]}, 0 16px 28px rgba(15, 23, 42, 0.12) !important;
             transform: translateY(-1px);
         }}
-        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] > button:disabled {{
-            opacity: 1;
-            cursor: default;
+        {selector} .stButton > button:disabled {{
+            opacity: 1 !important;
+            cursor: default !important;
+            background: {theme["surface"]} !important;
+            color: {theme["text_color"]} !important;
+            border-color: {theme["border_color"]} !important;
+            box-shadow: {theme["box_shadow"]} !important;
         }}
-        div[data-testid="stElementContainer"]:has(#{marker_id}) + div[data-testid="stElementContainer"] div[data-testid="stButton"] > button p {{
-            color: {theme["text_color"]};
-            font-size: 1.02rem;
-            font-weight: 900;
-            line-height: 1.15;
-            letter-spacing: 0.01em;
-            text-shadow: {theme["text_shadow"]};
+        {selector} .stButton > button div,
+        {selector} .stButton > button span,
+        {selector} .stButton > button p {{
+            color: inherit !important;
+            font-size: 1.02rem !important;
+            font-weight: 900 !important;
+            line-height: 1.15 !important;
+            letter-spacing: 0.01em !important;
+            text-shadow: {theme["text_shadow"]} !important;
+            margin: 0 !important;
         }}
         </style>
-        <div id="{marker_id}"></div>
     """
 
 
-def _render_simon_play_area_shell(*, shell_id: str) -> None:
+def _render_simon_play_area_shell(*, shell_key: str) -> None:
     st.markdown(
         f"""
         <style>
-        div[data-testid="stElementContainer"]:has(#{shell_id}) + div[data-testid="stVerticalBlock"] {{
-            background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 1) 100%);
-            border: 1px solid rgba(148, 163, 184, 0.42);
-            border-radius: 24px;
-            padding: 1rem 0.95rem 1.1rem;
-            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+        .st-key-{shell_key} {{
+            background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 1) 100%) !important;
+            border: 1px solid rgba(148, 163, 184, 0.42) !important;
+            border-radius: 24px !important;
+            padding: 1rem 0.95rem 1.1rem !important;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08) !important;
+        }}
+        .st-key-{shell_key} > div[data-testid="stVerticalBlock"] {{
+            gap: 0.75rem !important;
         }}
         </style>
-        <div id="{shell_id}"></div>
         """,
         unsafe_allow_html=True,
     )
@@ -732,20 +750,23 @@ def _render_simon_pad(
                 )
                 continue
 
-            column.markdown(
-                _render_simon_button_style(
-                    marker_id=f"simon_btn_{button_prefix}_{round_number}_{color_index}",
-                    actual_color_index=color_index,
-                    round_number=round_number,
-                    active=is_active,
-                ),
-                unsafe_allow_html=True,
-            )
-            if column.button(
-                display_name,
-                key=f"{button_prefix}_{color_index}",
-            ):
-                clicked_color_index = color_index
+            button_container_key = f"simon_btn_{button_prefix}_{round_number}_{color_index}"
+            with column:
+                with st.container(key=button_container_key):
+                    st.markdown(
+                        _render_simon_button_style(
+                            container_key=button_container_key,
+                            actual_color_index=color_index,
+                            round_number=round_number,
+                            active=is_active,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    if st.button(
+                        display_name,
+                        key=f"{button_prefix}_{color_index}",
+                    ):
+                        clicked_color_index = color_index
 
     return clicked_color_index
 
@@ -784,8 +805,9 @@ def _render_live_simon_says() -> None:
                 text=f"Stap {active_position} van {current_round}",
             )
             with play_area_placeholder.container():
-                _render_simon_play_area_shell(shell_id=f"simon_play_area_show_{current_round}_{active_position}")
-                with st.container():
+                play_area_key = f"simon_play_area_show_{current_round}_{active_position}"
+                _render_simon_play_area_shell(shell_key=play_area_key)
+                with st.container(key=play_area_key):
                     st.markdown(
                         _render_simon_display_slot(
                             actual_color_index=active_color,
@@ -810,8 +832,9 @@ def _render_live_simon_says() -> None:
                     text=f"Stap {active_position} van {current_round}",
                 )
                 with play_area_placeholder.container():
-                    _render_simon_play_area_shell(shell_id=f"simon_play_area_gap_{current_round}_{active_position}")
-                    with st.container():
+                    play_area_key = f"simon_play_area_gap_{current_round}_{active_position}"
+                    _render_simon_play_area_shell(shell_key=play_area_key)
+                    with st.container(key=play_area_key):
                         st.markdown(
                             _render_simon_display_slot(
                                 actual_color_index=None,
@@ -839,8 +862,9 @@ def _render_live_simon_says() -> None:
 
     input_index = int(state.get("input_index", 0))
     st.progress(input_index / max(current_round, 1), text=f"Stap {input_index + 1} van {current_round}")
-    _render_simon_play_area_shell(shell_id=f"simon_play_area_input_{current_round}_{input_index}")
-    with st.container():
+    play_area_key = f"simon_play_area_input_{current_round}_{input_index}"
+    _render_simon_play_area_shell(shell_key=play_area_key)
+    with st.container(key=play_area_key):
         st.markdown(
             _render_simon_display_slot(
                 actual_color_index=None,

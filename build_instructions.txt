@@ -422,3 +422,8 @@ Requested Changes (summarized)
 - Fix the Simon Says clickable input buttons so the CSS actually reaches the real Streamlit button elements during the guess phase.
 - Make the clickable buttons inherit the same color/background treatment as the demonstrated tiles instead of falling back to the default dark button style.
 - Fix the white play-area shell hook to target the correct Streamlit wrapper as well.
+
+82. Simon Says keyed-container styling fallback:
+- Replace the Simon Says marker-based CSS hooks with Streamlit keyed containers so the input-button styling no longer depends on brittle sibling selectors or `:has()`.
+- Scope the clickable-button styles to each Simon button container with stronger `.stButton > button` overrides so the guess-phase buttons keep their intended colors instead of turning black under the theme styles.
+- Apply the same keyed-container approach to the Simon play-area shell so the white card styling follows the live play area reliably.

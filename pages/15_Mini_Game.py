@@ -107,6 +107,17 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({red}, {green}, {blue}, {alpha})"
 
 
+def _preferred_text_color(hex_color: str) -> str:
+    clean = hex_color.lstrip("#")
+    if len(clean) != 6:
+        return "#111827"
+    red = int(clean[0:2], 16)
+    green = int(clean[2:4], 16)
+    blue = int(clean[4:6], 16)
+    luminance = (0.299 * red) + (0.587 * green) + (0.114 * blue)
+    return "#111827" if luminance > 170 else "#f8fafc"
+
+
 def _render_leaderboard_table(game_slug: str) -> None:
     leaderboard = services.minigame_service.list_leaderboard(game_slug)
     if not leaderboard:
@@ -383,15 +394,20 @@ def _simon_layout_for_round(round_number: int, *, layout_seed: int) -> list[int]
     return shuffled
 
 
-def _simon_display_name_for_color(actual_color_index: int, round_number: int) -> str:
+def _simon_display_name_for_color(actual_color_index: int, round_number: int, *, layout_seed: int) -> str:
     visible_ids = _simon_visible_color_ids(round_number)
     actual_name = str(SIMON_COLOR_POOL[actual_color_index]["name"])
+    if round_number < SIMON_WORD_MODE_START_ROUND:
+        return ""
     if round_number < SIMON_STROOP_MODE_START_ROUND or len(visible_ids) <= 1:
         return actual_name
 
-    shift = 1 + ((round_number - SIMON_STROOP_MODE_START_ROUND) % (len(visible_ids) - 1))
-    rotated = visible_ids[shift:] + visible_ids[:shift]
-    mapped_word_index = rotated[visible_ids.index(actual_color_index)]
+    alternative_ids = [color_id for color_id in visible_ids if color_id != actual_color_index]
+    if not alternative_ids:
+        return actual_name
+    mapped_word_index = random.Random((layout_seed * 101) + (round_number * 977) + (actual_color_index * 37)).choice(
+        alternative_ids
+    )
     return str(SIMON_COLOR_POOL[mapped_word_index]["name"])
 
 
@@ -440,92 +456,180 @@ def _simon_total_show_duration(round_number: int) -> float:
     return max(color_total + gap_total, 0.01)
 
 
-def _render_simon_reveal_banner(*, actual_color_index: int, step_number: int, total_steps: int) -> str:
+def _render_simon_display_slot(
+    *,
+    actual_color_index: int | None,
+    message: str,
+    detail: str,
+) -> str:
+    combined_detail = " - ".join(part for part in (message.strip(), detail.strip()) if part)
+    if actual_color_index is None:
+        return f"""
+            <div style="
+                display: flex;
+                justify-content: center;
+                margin-bottom: 0.8rem;
+            ">
+                <div style="
+                    width: 100%;
+                    max-width: 320px;
+                    min-height: 118px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.4rem;
+                    padding: 0.9rem 1rem;
+                    border-radius: 22px;
+                    border: 1px solid rgba(148, 163, 184, 0.46);
+                    background: linear-gradient(180deg, rgba(248, 250, 252, 1) 0%, rgba(226, 232, 240, 1) 100%);
+                    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
+                    text-align: center;
+                ">
+                    <div style="
+                        color: #111827;
+                        font-size: 1.35rem;
+                        font-weight: 900;
+                        line-height: 1.1;
+                    ">
+                        {message}
+                    </div>
+                    <div style="
+                        color: rgba(17, 24, 39, 0.72);
+                        font-size: 0.9rem;
+                        font-weight: 700;
+                    ">
+                        {detail}
+                    </div>
+                </div>
+            </div>
+        """
+
     color_name = str(SIMON_COLOR_POOL[actual_color_index]["name"])
     ink = str(SIMON_COLOR_POOL[actual_color_index]["ink"])
     glow = _hex_to_rgba(ink, 0.38)
-    surface = _hex_to_rgba(ink, 0.24)
+    text_color = _preferred_text_color(ink)
     return f"""
         <div style="
-            margin-bottom: 0.9rem;
-            padding: 1rem 1.1rem;
-            border-radius: 20px;
-            border: 1px solid {_hex_to_rgba(ink, 0.92)};
-            background: linear-gradient(180deg, {surface} 0%, rgba(24, 19, 15, 0.96) 100%);
-            box-shadow: 0 0 0 2px {glow}, 0 22px 40px rgba(0, 0, 0, 0.24);
-            text-align: center;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 0.8rem;
         ">
             <div style="
-                color: rgba(247, 239, 229, 0.88);
-                font-size: 0.82rem;
-                font-weight: 800;
-                letter-spacing: 0.14em;
-                text-transform: uppercase;
-                margin-bottom: 0.4rem;
+                width: 100%;
+                max-width: 320px;
+                min-height: 118px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 0.35rem;
+                padding: 0.9rem 1rem;
+                border-radius: 22px;
+                border: 1px solid {_hex_to_rgba(ink, 0.88)};
+                background: linear-gradient(180deg, {ink} 0%, {_hex_to_rgba(ink, 0.88)} 100%);
+                box-shadow: 0 0 0 2px {glow}, 0 18px 34px rgba(0, 0, 0, 0.16);
+                text-align: center;
             ">
-                Watch this color
-            </div>
-            <div style="
-                color: {ink};
-                font-size: 2rem;
-                font-weight: 900;
-                line-height: 1.05;
-                text-shadow: 0 0 20px {glow};
-            ">
-                {color_name}
-            </div>
-            <div style="
-                color: rgba(247, 239, 229, 0.76);
-                font-size: 0.88rem;
-                font-weight: 700;
-                margin-top: 0.45rem;
-            ">
-                Step {step_number} of {total_steps}
+                <div style="
+                    color: {_hex_to_rgba(text_color, 0.78)};
+                    font-size: 0.82rem;
+                    font-weight: 800;
+                    letter-spacing: 0.14em;
+                    text-transform: uppercase;
+                ">
+                    Simon shows
+                </div>
+                <div style="
+                    color: {text_color};
+                    font-size: 1.95rem;
+                    font-weight: 900;
+                    line-height: 1.02;
+                    text-shadow: 0 0 18px {glow};
+                ">
+                    {color_name}
+                </div>
+                <div style="
+                    color: {_hex_to_rgba(text_color, 0.82)};
+                    font-size: 0.88rem;
+                    font-weight: 700;
+                ">
+                    {combined_detail}
+                </div>
             </div>
         </div>
     """
+
+
+def _simon_button_theme(actual_color_index: int, round_number: int, *, active: bool) -> dict[str, str]:
+    ink = str(SIMON_COLOR_POOL[actual_color_index]["ink"])
+    if round_number < SIMON_WORD_MODE_START_ROUND:
+        surface = ink
+        border_color = _hex_to_rgba(ink, 0.98 if active else 0.92)
+        text_color = "transparent"
+        text_shadow = "none"
+        glow = _hex_to_rgba(ink, 0.30 if active else 0.18)
+    else:
+        surface = "#dbe3ea" if active else "#e5e7eb"
+        border_color = _hex_to_rgba(ink, 0.92 if active else 0.42)
+        text_color = "#111827" if round_number < SIMON_STROOP_MODE_START_ROUND else ink
+        text_shadow = "none"
+        glow = _hex_to_rgba(ink, 0.20 if active else 0.12)
+    box_shadow = (
+        f"0 0 0 2px {glow}, 0 14px 28px rgba(15, 23, 42, 0.12)"
+        if active
+        else "0 8px 18px rgba(15, 23, 42, 0.08)"
+    )
+    return {
+        "ink": ink,
+        "surface": surface,
+        "border_color": border_color,
+        "text_color": text_color,
+        "text_shadow": text_shadow,
+        "box_shadow": box_shadow,
+        "glow": glow,
+    }
 
 
 def _render_simon_tile(
     *,
     actual_color_index: int,
     round_number: int,
+    layout_seed: int,
     active: bool,
 ) -> str:
-    ink = str(SIMON_COLOR_POOL[actual_color_index]["ink"])
-    display_name = _simon_display_name_for_color(actual_color_index, round_number)
-    color_surface = _hex_to_rgba(ink, 0.26 if active else 0.06)
-    border_color = _hex_to_rgba(ink, 0.98 if active else 0.42)
-    shadow = (
-        f"box-shadow: 0 0 0 3px {_hex_to_rgba(ink, 0.34)}, 0 26px 44px rgba(0, 0, 0, 0.24); transform: scale(1.02);"
-        if active
-        else "box-shadow: 0 8px 18px rgba(0, 0, 0, 0.10);"
-    )
+    theme = _simon_button_theme(actual_color_index, round_number, active=active)
+    display_name = _simon_display_name_for_color(actual_color_index, round_number, layout_seed=layout_seed) or "&nbsp;"
     return f"""
         <div style="
-            min-height: 126px;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
-            gap: 0.25rem;
-            padding: 0.9rem 0.8rem;
-            border-radius: 18px;
-            border: 1px solid {border_color};
-            background: linear-gradient(180deg, {color_surface} 0%, rgba(24, 19, 15, 0.94) 100%);
-            text-align: center;
-            opacity: {1 if active else 0.42};
-            transition: all 160ms ease;
-            {shadow}
         ">
             <div style="
-                color: {ink};
-                font-size: 1.45rem;
-                font-weight: 900;
-                letter-spacing: 0.02em;
-                line-height: 1.05;
+                min-height: 76px;
+                min-width: 96px;
+                max-width: 100%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0.55rem 0.95rem;
+                border-radius: 18px;
+                border: 1px solid {theme["border_color"]};
+                background: {theme["surface"]};
+                box-shadow: {theme["box_shadow"]};
+                transition: all 160ms ease;
+                text-align: center;
             ">
-                {display_name}
+                <span style="
+                    color: {theme["text_color"]};
+                    font-size: 1.02rem;
+                    font-weight: 900;
+                    line-height: 1.15;
+                    letter-spacing: 0.01em;
+                    text-shadow: {theme["text_shadow"]};
+                ">
+                    {display_name}
+                </span>
             </div>
         </div>
     """
@@ -535,38 +639,65 @@ def _render_simon_button_style(
     *,
     marker_id: str,
     actual_color_index: int,
+    round_number: int,
     active: bool = False,
 ) -> str:
-    ink = str(SIMON_COLOR_POOL[actual_color_index]["ink"])
-    surface = _hex_to_rgba(ink, 0.18 if active else 0.12)
-    border = _hex_to_rgba(ink, 0.96 if active else 0.60)
-    glow = _hex_to_rgba(ink, 0.28 if active else 0.18)
+    theme = _simon_button_theme(actual_color_index, round_number, active=active)
     return f"""
         <div id="{marker_id}"></div>
         <style>
+        #{marker_id} + div[data-testid="stButton"] {{
+            display: flex;
+            justify-content: center;
+        }}
         #{marker_id} + div[data-testid="stButton"] > button {{
-            min-height: 112px;
+            width: auto;
+            min-width: 96px;
+            min-height: 76px;
+            padding: 0.55rem 0.95rem;
             border-radius: 18px;
-            border: 1px solid {border};
-            background: linear-gradient(180deg, {surface} 0%, rgba(24, 19, 15, 0.94) 100%);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+            border: 1px solid {theme["border_color"]};
+            background: {theme["surface"]};
+            box-shadow: {theme["box_shadow"]};
             transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
         }}
         #{marker_id} + div[data-testid="stButton"] > button:hover {{
-            border-color: {_hex_to_rgba(ink, 0.96)};
-            box-shadow: 0 0 0 2px {glow}, 0 18px 32px rgba(0, 0, 0, 0.24);
+            border-color: {theme["border_color"]};
+            box-shadow: 0 0 0 2px {theme["glow"]}, 0 16px 28px rgba(15, 23, 42, 0.12);
             transform: translateY(-1px);
         }}
+        #{marker_id} + div[data-testid="stButton"] > button:disabled {{
+            opacity: 1;
+            cursor: default;
+        }}
         #{marker_id} + div[data-testid="stButton"] > button p {{
-            color: {ink};
-            font-size: 1.35rem;
+            color: {theme["text_color"]};
+            font-size: 1.02rem;
             font-weight: 900;
-            line-height: 1.1;
+            line-height: 1.15;
             letter-spacing: 0.01em;
-            text-shadow: 0 0 18px {glow};
+            text-shadow: {theme["text_shadow"]};
         }}
         </style>
     """
+
+
+def _render_simon_play_area_shell(*, shell_id: str) -> None:
+    st.markdown(
+        f"""
+        <div id="{shell_id}"></div>
+        <style>
+        #{shell_id} + div[data-testid="stVerticalBlock"] {{
+            background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 1) 100%);
+            border: 1px solid rgba(148, 163, 184, 0.42);
+            border-radius: 24px;
+            padding: 1rem 0.95rem 1.1rem;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_simon_pad(
@@ -588,12 +719,13 @@ def _render_simon_pad(
                 continue
             color_index = layout[layout_position]
             is_active = active_index == color_index
-            display_name = _simon_display_name_for_color(color_index, round_number)
+            display_name = _simon_display_name_for_color(color_index, round_number, layout_seed=layout_seed) or "\u00A0"
             if not clickable:
                 column.markdown(
                     _render_simon_tile(
                         actual_color_index=color_index,
                         round_number=round_number,
+                        layout_seed=layout_seed,
                         active=is_active,
                     ),
                     unsafe_allow_html=True,
@@ -604,13 +736,13 @@ def _render_simon_pad(
                 _render_simon_button_style(
                     marker_id=f"simon_btn_{button_prefix}_{round_number}_{color_index}",
                     actual_color_index=color_index,
+                    round_number=round_number,
                     active=is_active,
                 ),
                 unsafe_allow_html=True,
             )
             if column.button(
                 display_name,
-                width="stretch",
                 key=f"{button_prefix}_{color_index}",
             ):
                 clicked_color_index = color_index
@@ -644,30 +776,31 @@ def _render_live_simon_says() -> None:
     if phase == "show":
         total_duration = _simon_total_show_duration(current_round)
         progress_placeholder = st.empty()
-        status_placeholder = st.empty()
-        pad_placeholder = st.empty()
+        play_area_placeholder = st.empty()
         elapsed_before = 0.0
         for active_position, active_color in enumerate(sequence[:current_round], start=1):
             progress_placeholder.progress(
                 min(1.0, elapsed_before / total_duration),
                 text=f"Stap {active_position} van {current_round}",
             )
-            status_placeholder.markdown(
-                _render_simon_reveal_banner(
-                    actual_color_index=active_color,
-                    step_number=active_position,
-                    total_steps=current_round,
-                ),
-                unsafe_allow_html=True,
-            )
-            with pad_placeholder.container():
-                _render_simon_pad(
-                    round_number=current_round,
-                    layout_seed=layout_seed,
-                    active_index=active_color,
-                    clickable=False,
-                    button_prefix="simon_show_static",
-                )
+            with play_area_placeholder.container():
+                _render_simon_play_area_shell(shell_id=f"simon_play_area_show_{current_round}_{active_position}")
+                with st.container():
+                    st.markdown(
+                        _render_simon_display_slot(
+                            actual_color_index=active_color,
+                            message="Follow the color",
+                            detail=f"Step {active_position} of {current_round}",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    _render_simon_pad(
+                        round_number=current_round,
+                        layout_seed=layout_seed,
+                        active_index=active_color,
+                        clickable=False,
+                        button_prefix="simon_show_static",
+                    )
             show_duration = _simon_show_duration_for_position(active_position, current_round)
             time.sleep(show_duration)
             elapsed_before += show_duration
@@ -676,15 +809,24 @@ def _render_live_simon_says() -> None:
                     min(1.0, elapsed_before / total_duration),
                     text=f"Stap {active_position} van {current_round}",
                 )
-                status_placeholder.info("Get ready for the next color...")
-                with pad_placeholder.container():
-                    _render_simon_pad(
-                        round_number=current_round,
-                        layout_seed=layout_seed,
-                        active_index=None,
-                        clickable=False,
-                        button_prefix="simon_show_static",
-                    )
+                with play_area_placeholder.container():
+                    _render_simon_play_area_shell(shell_id=f"simon_play_area_gap_{current_round}_{active_position}")
+                    with st.container():
+                        st.markdown(
+                            _render_simon_display_slot(
+                                actual_color_index=None,
+                                message="Get ready",
+                                detail="The next color is coming",
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                        _render_simon_pad(
+                            round_number=current_round,
+                            layout_seed=layout_seed,
+                            active_index=None,
+                            clickable=False,
+                            button_prefix="simon_show_static",
+                        )
                 time.sleep(SIMON_SHOW_GAP_SECONDS)
                 elapsed_before += SIMON_SHOW_GAP_SECONDS
 
@@ -697,13 +839,23 @@ def _render_live_simon_says() -> None:
 
     input_index = int(state.get("input_index", 0))
     st.progress(input_index / max(current_round, 1), text=f"Stap {input_index + 1} van {current_round}")
-    clicked_color = _render_simon_pad(
-        round_number=current_round,
-        layout_seed=layout_seed,
-        active_index=None,
-        clickable=True,
-        button_prefix="simon_input",
-    )
+    _render_simon_play_area_shell(shell_id=f"simon_play_area_input_{current_round}_{input_index}")
+    with st.container():
+        st.markdown(
+            _render_simon_display_slot(
+                actual_color_index=None,
+                message="Now it's your turn",
+                detail=f"Step {input_index + 1} of {current_round}",
+            ),
+            unsafe_allow_html=True,
+        )
+        clicked_color = _render_simon_pad(
+            round_number=current_round,
+            layout_seed=layout_seed,
+            active_index=None,
+            clickable=True,
+            button_prefix="simon_input",
+        )
     if clicked_color is None:
         return
 
@@ -790,8 +942,9 @@ def _render_simon_says_tab() -> None:
         st.write("- Elke volledig gehaalde ronde telt als 1 punt.")
         st.write("- Zodra je een fout maakt, wordt je run opgeslagen.")
         st.write("- Om de 4 rondes komt er een kleur bij en om de 8 rondes wisselen de kleuren van plek.")
-        st.write("- Vanaf ronde 13 zie je kleurwoorden, maar je blijft de kleuren volgen.")
-        st.write("- Vanaf ronde 17 begint het STROOP level: volg de kleur van de letters, niet het woord.")
+        st.write("- In de eerste 12 rondes zie je alleen gekleurde knoppen zonder woorden.")
+        st.write("- Van ronde 13 t/m 16 worden de knoppen grijs en zie je de kleurnaam in zwarte letters.")
+        st.write("- Vanaf ronde 17 begint het STROOP level: de woorden wisselen, maar je volgt nog steeds de kleur van de letters.")
         st.write("- De admin kent weekendpunten toe zodra de deadline is verstreken.")
 
 

@@ -75,7 +75,12 @@ def _backup_service_has_expected_capabilities(service: object) -> bool:
         hasattr(service, attribute)
         for attribute in (
             "get_offsite_backup_status",
+            "get_backup_settings",
+            "update_backup_settings",
+            "get_offsite_backup_targets",
             "run_offsite_backup_now",
+            "list_offsite_backup_objects",
+            "restore_offsite_object",
             "get_streamlit_secrets_template",
             "restore_latest_offsite_snapshot_if_needed",
         )

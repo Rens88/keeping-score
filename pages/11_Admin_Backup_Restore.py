@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from tournament_tracker.branding import render_bottom_decoration, render_page_intro
+from tournament_tracker.branding import render_bottom_decoration, render_form_field_label, render_page_intro
 from tournament_tracker.bootstrap import get_runtime_services
 from tournament_tracker.services.errors import ValidationError
 from tournament_tracker.session import logout_user, render_sidebar, require_admin
@@ -20,6 +20,29 @@ st.warning(
 )
 
 offsite_status = services.backup_service.get_offsite_backup_status()
+backup_settings = services.backup_service.get_backup_settings()
+backup_targets = services.backup_service.get_offsite_backup_targets()
+
+
+def _reload_after_restore() -> None:
+    logout_user(services)
+    st.cache_data.clear()
+    st.cache_resource.clear()
+
+
+def _format_offsite_object_label(item) -> str:
+    modified = item.last_modified_at or "unknown time"
+    size_mb = item.size_bytes / (1024 * 1024)
+    return f"{item.category.title()} | {modified} | {size_mb:.2f} MB | {item.object_key}"
+
+
+offsite_objects = []
+offsite_object_list_error: str | None = None
+if offsite_status.enabled:
+    try:
+        offsite_objects = services.backup_service.list_offsite_backup_objects()
+    except Exception as exc:
+        offsite_object_list_error = str(exc) or "Could not list off-site backup files."
 
 st.subheader("Automatic Off-Site Backup")
 with st.container(border=True):
@@ -30,9 +53,16 @@ with st.container(border=True):
     st.write(f"Endpoint: {offsite_status.endpoint or 'Not configured'}")
     st.write(f"Region: {offsite_status.region or 'Not configured'}")
     st.write(f"Prefix: {offsite_status.prefix or '-'}")
+    if backup_settings.auto_interval_minutes <= 0:
+        st.write("Automatic backup interval: every committed tournament-data write")
+    else:
+        st.write(f"Automatic backup interval: at most once every {backup_settings.auto_interval_minutes} minutes")
+    st.write(f"Manual backup file prefix: {backup_settings.manual_prefix}")
     st.write(f"Last successful backup: {offsite_status.last_success_at or 'Never'}")
     if offsite_status.last_object_key:
         st.caption(f"Latest object key: `{offsite_status.last_object_key}`")
+    st.caption(f"Automatic restore target: `{backup_targets.automatic_object_key}`")
+    st.caption(f"Manual backup target: `{backup_targets.manual_object_key}`")
     st.write(f"Last automatic restore: {offsite_status.last_restore_at or 'Never'}")
     if offsite_status.last_restore_object_key:
         st.caption(f"Latest restored object: `{offsite_status.last_restore_object_key}`")
@@ -42,7 +72,7 @@ with st.container(border=True):
             + (f" ({offsite_status.last_error_at})" if offsite_status.last_error_at else "")
             + f": {offsite_status.last_error_message}"
         )
-    if st.button("Run off-site backup now", width="stretch", key="run_offsite_backup_now"):
+    if st.button("Run manual off-site backup now", width="stretch", key="run_offsite_backup_now"):
         result = services.backup_service.run_offsite_backup_now()
         if result.success:
             st.success(result.message)
@@ -51,6 +81,80 @@ with st.container(border=True):
             st.error(result.message)
         else:
             st.info(result.message)
+
+st.subheader("Backup Settings")
+with st.container(border=True):
+    with st.form("offsite_backup_settings_form"):
+        render_form_field_label(
+            "Automatic backup interval (minutes)",
+            "0 means every committed tournament-data write. 60 means at most once per hour.",
+        )
+        auto_interval_minutes = int(
+            st.number_input(
+                "Automatic backup interval (minutes)",
+                min_value=0,
+                max_value=7 * 24 * 60,
+                step=15,
+                value=int(backup_settings.auto_interval_minutes),
+                label_visibility="collapsed",
+            )
+        )
+        render_form_field_label(
+            "Manual backup file prefix",
+            "Used for the separate manual off-site snapshot. Spaces and punctuation are normalized for the object key.",
+        )
+        manual_prefix = st.text_input(
+            "Manual backup file prefix",
+            value=backup_settings.manual_prefix,
+            label_visibility="collapsed",
+        )
+        save_backup_settings = st.form_submit_button("Save backup settings", width="stretch", type="primary")
+
+    if save_backup_settings:
+        try:
+            services.backup_service.update_backup_settings(
+                auto_interval_minutes=auto_interval_minutes,
+                manual_prefix=manual_prefix,
+            )
+            st.success("Backup settings saved.")
+            st.rerun()
+        except ValidationError as exc:
+            st.error(str(exc))
+
+st.subheader("Restore From Off-Site Backup")
+with st.container(border=True):
+    if not offsite_status.enabled:
+        st.info("Configure off-site backup credentials first to browse restore files.")
+    elif offsite_object_list_error:
+        st.error(offsite_object_list_error)
+    elif not offsite_objects:
+        st.info("No off-site backup files were found under the configured prefix yet.")
+    else:
+        st.caption("Select which off-site file should replace the current local database.")
+        selected_offsite_object = st.selectbox(
+            "Available off-site backup files",
+            options=offsite_objects,
+            format_func=_format_offsite_object_label,
+            key="restore_offsite_object_select",
+            label_visibility="collapsed",
+        )
+        st.caption(f"Selected object key: `{selected_offsite_object.object_key}`")
+        confirm_offsite_restore = st.checkbox(
+            "I understand this will overwrite the current app state with the selected off-site backup.",
+            key="confirm_offsite_restore",
+            value=False,
+        )
+        if st.button("Restore selected off-site backup", width="stretch", type="secondary", key="restore_offsite_backup"):
+            if not confirm_offsite_restore:
+                st.error("Please confirm overwrite before restoring from off-site backup.")
+            else:
+                result = services.backup_service.restore_offsite_object(selected_offsite_object.object_key)
+                if result.restored:
+                    _reload_after_restore()
+                    st.success("Off-site backup restored successfully. Please log in again.")
+                    st.rerun()
+                else:
+                    st.error(result.message)
 
 with st.expander("Streamlit Cloud secrets template", expanded=not offsite_status.configured):
     st.caption(
@@ -106,11 +210,7 @@ if st.button("Import backup and replace current state", type="primary", width="s
     else:
         try:
             services.backup_service.import_snapshot(uploaded_backup.getvalue())
-
-            logout_user(services)
-            st.cache_data.clear()
-            st.cache_resource.clear()
-
+            _reload_after_restore()
             st.success("Backup imported successfully. Please log in again.")
             st.rerun()
         except ValidationError as exc:
@@ -143,9 +243,7 @@ with st.container(border=True):
         else:
             try:
                 services.backup_service.load_demo_halfway_state()
-                logout_user(services)
-                st.cache_data.clear()
-                st.cache_resource.clear()
+                _reload_after_restore()
                 st.success("The fake half-way state has been loaded. Please log in again.")
                 st.rerun()
             except ValidationError as exc:
@@ -170,9 +268,7 @@ with st.container(border=True):
         else:
             try:
                 services.backup_service.reset_to_fresh_state(preserve_admin_user_id=admin_user.id)
-                logout_user(services)
-                st.cache_data.clear()
-                st.cache_resource.clear()
+                _reload_after_restore()
                 st.success("Fresh state created. Log in again with your current admin credentials.")
                 st.rerun()
             except ValidationError as exc:

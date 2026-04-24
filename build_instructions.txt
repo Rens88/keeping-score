@@ -398,3 +398,22 @@ Requested Changes (summarized)
 
 76. Simon Says reveal speed scaling:
 - After every 4 rounds, speed up the Simon Says example reveal by reducing each shown color duration by 20%, while keeping a floor of 0.2 seconds so later rounds remain visible.
+
+77. Manage Schedule create/delete session-state fix:
+- Fix the Streamlit crash on the admin Manage Schedule page when creating or deleting head-to-head matches or multi-competitor games.
+- Avoid writing to widget-backed scheduled-order session-state keys after those inputs have already been instantiated in the same run.
+- Refresh the next scheduled-order defaults through a rerun-safe pending flag and preserve the success message across that rerun.
+
+78. Manage Schedule edit-form selection sync:
+- Fix the admin Manage Schedule edit tabs so switching the selected match or multi-competitor game reloads that item's own values instead of reusing the first item's widget state.
+- Use selection-specific Streamlit widget keys for edit-form fields, including game type, status, order, date/time, names, participants, award scheme, and competitors.
+
+79. Off-site backup throttling, manual slot, and restore-target selection:
+- Change automatic off-site backups so they no longer create a fresh timestamped object after every committed write; instead, throttle them with an admin-configurable interval and keep only one automatic restore-target object under the automatic prefix.
+- Make the manual off-site backup action refresh the automatic restore target and also write one separate manual backup object using an admin-configurable file prefix, while pruning older manual objects so only the latest one remains.
+- Add admin UI for backup settings, show the automatic/manual target keys, list available off-site backup files in a dropdown, and allow restoring the selected remote file directly from the Backup & Restore page.
+
+80. Simon Says stable play area and round-style refresh:
+- Keep the Simon Says play area stable between reveal and input by always showing a fixed display slot above the button pad instead of removing the pattern-display section when the player's turn starts.
+- Style the Simon play area as a white surface, shrink the buttons to fit their content with a comfortable minimum clickable size, and keep the button positions centered and consistent within each round.
+- Update button presentation by phase: rounds 1-12 use colored buttons without words, rounds 13-16 use light-grey buttons with black color names, and round 17 onward keeps the light-grey buttons while showing random color words in the actual button-color font for STROOP play.
